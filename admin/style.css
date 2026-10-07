@@ -136,6 +136,30 @@ a { color: var(--brand); }
 .gh-run { background: var(--surface); border-radius: 12px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; }
 .empty { background: var(--surface); border-radius: 12px; padding: 18px; color: var(--muted); }
 
+/* ---------- zamanlanmış çalışmalar ---------- */
+.schedule-wrap { overflow-x: auto; background: var(--surface); border-radius: var(--radius); }
+.schedule { width: 100%; border-collapse: collapse; min-width: 720px; }
+.schedule th, .schedule td { padding: 9px 10px; text-align: center; border-bottom: 1px solid var(--line); font-size: 13px; }
+.schedule th { font-size: 12px; color: var(--muted); font-weight: 600; }
+.schedule th b { display: block; color: var(--ink); font-size: 13.5px; }
+.schedule td:first-child, .schedule th:first-child { text-align: left; white-space: nowrap; }
+.schedule tr.today td { background: #fafdfc; }
+.schedule tr:last-child td { border-bottom: 0; }
+.slot { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px; padding: 5px 6px; border-radius: 9px; cursor: default; }
+.slot b { font-size: 13px; }
+.slot small { font-size: 11px; }
+.slot.ok { background: var(--gain-soft); color: var(--gain); }
+.slot.bad { background: var(--bad-soft); color: var(--bad); }
+.slot.miss { background: #f3f4f6; color: #9ca3af; outline: 1.5px dashed #d1d5db; }
+.slot.wait { background: var(--warn-soft); color: var(--warn); }
+.slot.none { color: #cbd5e1; }
+.slot.clickable { cursor: pointer; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 2px 0; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.dot.ok { background: var(--gain); } .dot.bad { background: var(--bad); } .dot.miss { background: #d1d5db; } .dot.wait { background: var(--warn); }
+.stat.clickable { cursor: pointer; }
+.stat.clickable:hover { outline: 1.5px solid var(--brand-soft); }
+
 /* ---------- pencere ---------- */
 .dialog { border: 0; border-radius: 16px; padding: 22px; width: min(520px, 94vw); }
 .dialog::backdrop { background: rgba(17, 24, 39, 0.35); }

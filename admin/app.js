@@ -11,7 +11,7 @@
 const SDK = "https://www.gstatic.com/firebasejs/11.10.0";
 const { initializeApp } = await import(`${SDK}/firebase-app.js`);
 const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } = await import(`${SDK}/firebase-auth.js`);
-const { getFirestore, collection, doc, getDoc, getDocs, limit, orderBy, query } = await import(`${SDK}/firebase-firestore.js`);
+const { getFirestore, collection, doc, getDoc, getDocs, limit, orderBy, query, where } = await import(`${SDK}/firebase-firestore.js`);
 
 const SECTORS = {
   market: "Market", akaryakit: "Akaryakıt", giyim: "Giyim", elektronik: "Elektronik", "beyaz-esya": "Beyaz Eşya",
@@ -21,6 +21,22 @@ const SECTORS = {
 };
 const JOIN = { app: "Uygulamadan", sms: "SMS", auto: "Otomatik" };
 const PAGE = 60;
+
+/*
+ * Zamanlanmış işler (Türkiye saati). .github/workflows/scrape.yml ve notify.yml ile aynı olmalı.
+ *   publish: o taramada Firestore'a yayın yapılır
+ */
+const SCHEDULE = [
+  { time: "00:05", kind: "scrape", publish: false, label: "Tarama" },
+  { time: "09:00", kind: "scrape", publish: true, label: "Tarama" },
+  { time: "12:30", kind: "notify", label: "Bildirim" },
+  { time: "15:00", kind: "scrape", publish: false, label: "Tarama" },
+  { time: "19:30", kind: "notify", label: "Bildirim" },
+  { time: "21:00", kind: "scrape", publish: true, label: "Tarama" }
+];
+const TR_OFFSET = 3 * 60 * 60 * 1000; // Türkiye UTC+3 (yaz saati yok)
+const SLOT_BEFORE = 10 * 60 * 1000; // en erken 10 dk önce
+const SLOT_AFTER = 150 * 60 * 1000; // GitHub gecikmesi + tarama süresi: 2,5 saat içinde rapor düşmeli
 const MAX_DOC = 1024 * 1024;
 
 const $ = (id) => document.getElementById(id);
@@ -100,6 +116,7 @@ async function showApp(user) {
   $("scanButton").disabled = !config.scanEnabled;
   $("scanButton").title = config.scanEnabled ? "" : "GitHub bağlantısı henüz ayarlı değil (GITHUB_TOKEN / GITHUB_REPO)";
   await loadCampaigns();
+  loadRuns(); // zamanlanmış işlerin özeti için (arka planda)
 }
 
 /* =========================
@@ -163,6 +180,23 @@ function renderStats() {
   ]
     .map(([label, value, sub]) => `<div class="stat"><span>${esc(label)}</span><strong>${esc(value)}</strong><em>${esc(sub)}</em></div>`)
     .join("");
+
+  // Bugünkü zamanlanmış işler: tıklayınca Taramalar sekmesi
+  if (state.runs) {
+    const today = scheduleDays(1)[0];
+    const cells = SCHEDULE.map((s) => slotStatus(today, s));
+    const due = cells.filter((c) => c.state !== "future" && c.state !== "none");
+    const done = due.filter((c) => c.state === "ok").length;
+    const problem = due.filter((c) => c.state === "bad" || c.state === "miss").length;
+    const next = SCHEDULE.find((s, i) => cells[i].state === "future");
+    $("stats").insertAdjacentHTML(
+      "afterbegin",
+      `<div class="stat clickable" id="todayStat"><span>Bugünkü zamanlanmış işler</span>
+        <strong style="color:${problem ? "var(--bad)" : "var(--gain)"}">${done}/${due.length}${problem ? " ⚠️" : " ✓"}</strong>
+        <em>${next ? `sıradaki: ${next.time} ${next.label.toLowerCase()}` : "bugünkü işler bitti"}</em></div>`
+    );
+    $("todayStat").onclick = () => document.querySelector('.tab[data-tab="runs"]').click();
+  }
 }
 
 function renderPrograms() {
@@ -316,18 +350,115 @@ $("campaigns").onclick = async (e) => {
 ========================= */
 
 async function loadRuns() {
-  $("runs").innerHTML = $("notifyRuns").innerHTML = `<div class="empty">Yükleniyor…</div>`;
+  $("runs").innerHTML = $("notifyRuns").innerHTML = $("schedule").innerHTML = `<div class="empty">Yükleniyor…</div>`;
   try {
-    const snap = await getDocs(query(collection(db, "adminRuns"), orderBy("startedAt", "desc"), limit(40)));
+    // Son 8 gün (zamanlanmış iş tablosu 7 gün gösterir); günde ~6 rapor
+    const since = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const snap = await getDocs(
+      query(collection(db, "adminRuns"), where("startedAt", ">=", since), orderBy("startedAt", "desc"), limit(120))
+    );
     state.runs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (e) {
     const msg = e.code === "permission-denied" ? "Erişim yok: Firestore kurallarını yükledin mi? (firebase deploy --only firestore:rules)" : e.message;
-    $("runs").innerHTML = $("notifyRuns").innerHTML = `<div class="error">${esc(msg)}</div>`;
+    $("runs").innerHTML = $("notifyRuns").innerHTML = $("schedule").innerHTML = `<div class="error">${esc(msg)}</div>`;
     state.runs = null;
     return;
   }
   renderRuns();
+  renderSchedule();
+  renderStats();
 }
+
+/* =========================
+   ZAMANLANMIŞ İŞLER TABLOSU
+========================= */
+
+/** Son n gün, Türkiye takvimine göre: [{ key: "2026-10-07", startUtc: ms (TR gece yarısı) }] — bugün ilk sırada */
+function scheduleDays(n) {
+  const trNow = new Date(Date.now() + TR_OFFSET);
+  const midnightUtc = Date.UTC(trNow.getUTCFullYear(), trNow.getUTCMonth(), trNow.getUTCDate()) - TR_OFFSET;
+  return Array.from({ length: n }, (_, i) => {
+    const start = midnightUtc - i * 86400000;
+    return { key: new Date(start + TR_OFFSET).toISOString().slice(0, 10), startUtc: start };
+  });
+}
+
+function slotTime(day, slot) {
+  const [h, m] = slot.time.split(":").map(Number);
+  return day.startUtc + (h * 60 + m) * 60000;
+}
+
+/** Bir günün bir saati için durum: ok | bad | miss | wait | future | none (henüz kayıt tutulmuyordu) */
+function slotStatus(day, slot) {
+  const at = slotTime(day, slot);
+  const now = Date.now();
+  const report = (state.runs ?? [])
+    .filter((r) => r.kind === slot.kind && r.trigger === "zamanlanmış")
+    .map((r) => ({ r, t: toDate(r.startedAt)?.getTime() ?? 0 }))
+    .filter(({ t }) => t >= at - SLOT_BEFORE && t <= at + SLOT_AFTER)
+    .sort((a, b) => a.t - b.t)[0];
+
+  if (report) return { state: report.r.ok ? "ok" : "bad", report: report.r, at };
+  if (at > now) return { state: "future", at };
+  if (now < at + SLOT_AFTER) return { state: "wait", at };
+  // İlk zamanlanmış rapordan önceki saatler: sistem henüz kurulmamıştı
+  const first = (state.runs ?? [])
+    .filter((r) => r.trigger === "zamanlanmış")
+    .map((r) => toDate(r.startedAt)?.getTime() ?? Infinity)
+    .reduce((a, b) => Math.min(a, b), Infinity);
+  if (at < first - SLOT_BEFORE) return { state: "none", at };
+  return { state: "miss", at };
+}
+
+const hhmm = (ms) => new Date(ms + TR_OFFSET).toISOString().slice(11, 16);
+
+function slotCell(day, slot) {
+  const s = slotStatus(day, slot);
+  const r = s.report;
+  if (s.state === "future") return `<span class="slot none" title="Henüz zamanı gelmedi">—</span>`;
+  if (s.state === "none") return `<span class="slot none" title="Bu tarihte henüz kayıt tutulmuyordu">·</span>`;
+  if (s.state === "wait") return `<span class="slot wait" title="Zamanı geldi, rapor bekleniyor (GitHub gecikmesi ya da tarama sürüyor)"><b>⏳</b><small>bekleniyor</small></span>`;
+  if (s.state === "miss") return `<span class="slot miss" title="Bu saatte zamanlanmış çalışma raporu yok"><b>✖</b><small>çalışmadı</small></span>`;
+
+  const started = toDate(r.startedAt).getTime();
+  const late = Math.round((started - s.at) / 60000);
+  const extra =
+    slot.kind === "notify"
+      ? (r.notify?.sent?.length ? "🔔 gönderildi" : "yeni yok")
+      : slot.publish
+        ? (r.firestore?.published ? "📢 yayın" : "yayın yok!")
+        : "ısınma";
+  const title = `${r.summary}${late > 2 ? ` · ${late} dk gecikmeli başladı` : ""}`;
+  return `<span class="slot ${s.state} clickable" data-run="${esc(r.id)}" title="${esc(title)}">
+    <b>${s.state === "ok" ? "✓" : "✖"} ${hhmm(started)}</b><small>${esc(extra)}</small></span>`;
+}
+
+function renderSchedule() {
+  const days = scheduleDays(7);
+  const head = SCHEDULE.map(
+    (s) => `<th><b>${s.time}</b>${s.kind === "notify" ? "🔔 bildirim" : s.publish ? "📢 tarama + yayın" : "tarama"}</th>`
+  ).join("");
+  const rows = days
+    .map((d, i) => {
+      const label = i === 0 ? "Bugün" : i === 1 ? "Dün" : new Date(d.startUtc + TR_OFFSET).toLocaleDateString("tr-TR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+      return `<tr class="${i === 0 ? "today" : ""}"><td><b>${esc(label)}</b></td>${SCHEDULE.map((s) => `<td>${slotCell(d, s)}</td>`).join("")}</tr>`;
+    })
+    .join("");
+  $("schedule").innerHTML = `<table class="schedule"><thead><tr><th>Gün</th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// Hücreye tıklayınca o raporu aşağıda aç
+$("schedule").onclick = (e) => {
+  const id = e.target.closest("[data-run]")?.dataset.run;
+  if (!id) return;
+  const run = state.runs.find((r) => r.id === id);
+  const target = document.querySelector(`#${run.kind === "notify" ? "notifyRuns" : "runs"} details[data-id="${CSS.escape(id)}"]`);
+  if (run.kind === "notify") document.querySelector('.tab[data-tab="notify"]').click();
+  if (target) {
+    target.open = true;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+};
 
 function okPill(r) {
   return r.ok ? `<span class="pill ok">başarılı</span>` : `<span class="pill bad">sorunlu</span>`;
@@ -350,7 +481,7 @@ function renderRuns() {
           </tr>`)
           .join("");
         const outcomes = (fs?.outcomes ?? []).map((o) => `<tr><td>${esc(o.name)}</td><td>${esc(o.action)}</td><td colspan="2">${esc(o.message)}</td></tr>`).join("");
-        return `<details class="run">
+        return `<details class="run" data-id="${esc(r.id)}">
           <summary>
             <span>${fmtTime(toDate(r.startedAt))}</span>
             <span class="hide-sm"><span class="pill">${esc(r.trigger ?? "")}</span></span>
@@ -372,7 +503,7 @@ function renderRuns() {
         const n = r.notify ?? {};
         const slot = n.slot ? `${n.slot.slice(0, 2)}:${n.slot.slice(2)}` : "";
         const sent = (n.sent ?? []).map((s) => `<p class="small">📣 <b>${esc(s.topic)}</b> — ${esc(s.body)}</p>`).join("");
-        return `<details class="run">
+        return `<details class="run" data-id="${esc(r.id)}">
           <summary>
             <span>${fmtTime(toDate(r.startedAt))}</span>
             <span class="hide-sm"><span class="pill">${esc(slot)}</span></span>

@@ -84,6 +84,19 @@
         <!-- TARAMALAR -->
         <section id="tab-runs" class="tab-panel" hidden>
           <div class="section-head">
+            <h2>Zamanlanmış çalışmalar <span class="muted small">son 7 gün</span></h2>
+            <span class="muted small">Türkiye saati · GitHub zamanlanmış işleri bazen 5–30 dk geç başlatır</span>
+          </div>
+          <div id="schedule" class="schedule-wrap"></div>
+          <div class="legend small muted">
+            <span><i class="dot ok"></i> çalıştı</span>
+            <span><i class="dot bad"></i> hata verdi</span>
+            <span><i class="dot miss"></i> çalışmadı</span>
+            <span><i class="dot wait"></i> bekleniyor / sürüyor</span>
+            <span>📢 Firestore'a yayın · 🔔 bildirim</span>
+          </div>
+
+          <div class="section-head">
             <h2>GitHub'daki tarama işleri</h2>
             <button id="ghRefresh" class="btn btn-ghost small">Yenile</button>
           </div>
