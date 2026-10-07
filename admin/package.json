@@ -1,0 +1,12 @@
+{
+  "name": "kartradar-admin",
+  "private": true,
+  "type": "module",
+  "description": "KartRadar admin paneli (Vercel). Bağımlılık yok.",
+  "scripts": {
+    "dev": "node dev-server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

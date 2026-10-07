@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Geliştirme: emülatör bilgisayardaki admin sunucusuna (http) bağlanabilsin.
+         Sadece debug derlemede geçerli; yayın sürümünde http kapalı kalır. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <application android:usesCleartextTraffic="true" />
+</manifest>

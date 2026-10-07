@@ -1,0 +1,28 @@
+{
+  "name": "kartradar-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "KartRadar: banka ve kredi kartı kampanyalarını tarayıp Firestore'a yazan sistem",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "scrape": "tsx src/cli.ts",
+    "cycle": "tsx src/cli.ts --save",
+    "test": "tsx --test test/*.test.ts",
+    "notify": "tsx src/notify.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "firebase-admin": "^14.5.0",
+    "playwright": "^1.63.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

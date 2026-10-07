@@ -1,0 +1,108 @@
+# KartRadar — zamanlanmış tarama (GitHub Actions)
+#
+# Türkiye saatiyle günde 4 tarama: 00:05, 09:00, 15:00, 21:00
+#   09:00 ve 21:00 → Firestore'a yayınlanır (kullanıcılar günde 2 güncelleme görür)
+#   00:05 ve 15:00 → sadece tarama: yeni kampanyaların detay sayfaları önceden açılır,
+#                    böylece yayın taramaları hızlı ve eksiksiz olur
+# GitHub cron saatleri UTC'dir (Türkiye = UTC+3). Zamanlanmış işler birkaç dakika gecikebilir.
+#
+# Elle çalıştırma: GitHub → Actions → "Kampanya taraması" → Run workflow
+# (ileride admin paneldeki "Şimdi tara" butonu da bunu tetikleyecek)
+#
+# Gerekli secret: FIREBASE_SERVICE_ACCOUNT_JSON (service account JSON dosyasının içeriği)
+
+name: Kampanya taraması
+
+on:
+  schedule:
+    - cron: "5 21 * * *" # 00:05 TR — sadece tarama
+    - cron: "0 6 * * *"  # 09:00 TR — yayın
+    - cron: "0 12 * * *" # 15:00 TR — sadece tarama
+    - cron: "0 18 * * *" # 21:00 TR — yayın
+  workflow_dispatch:
+    inputs:
+      sites:
+        description: "Sadece bu kartlar (boşluklu, ör. 'bonus world'). Boş = hepsi"
+        required: false
+        default: ""
+      publish:
+        description: "Firestore'a yayınla"
+        type: boolean
+        default: true
+      detail_max:
+        description: "Bir taramada açılacak en fazla yeni detay sayfası (ilk kurulumda 400)"
+        required: false
+        default: "40"
+
+# Aynı anda tek tarama (üst üste binmesin)
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scraper/package-lock.json
+
+      - name: Paketler
+        run: npm ci
+
+      - name: Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Taramalar arası hafıza: detay önbelleği + Firestore'a yazılan özetlerin kaydı.
+      # Bu olmazsa her tarama tüm detay sayfalarını açar ve tüm özetleri yeniden yazar.
+      - name: Önceki taramanın verisini geri yükle
+        uses: actions/cache/restore@v4
+        with:
+          path: scraper/data
+          key: scraper-data-${{ github.run_id }}
+          restore-keys: scraper-data-
+
+      - name: Yayın saati mi?
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "publish=${{ inputs.publish }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 6 * * *" ] || [ "${{ github.event.schedule }}" = "0 18 * * *" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tara
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          DETAIL_MAX_PER_RUN: ${{ inputs.detail_max || '40' }}
+          TZ: Europe/Istanbul
+        run: |
+          FLAGS="--save"
+          if [ "${{ steps.mode.outputs.publish }}" != "true" ]; then FLAGS="$FLAGS --no-publish"; fi
+          npx tsx src/cli.ts ${{ inputs.sites }} $FLAGS
+
+      - name: Veriyi sakla
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: scraper/data
+          key: scraper-data-${{ github.run_id }}
+
+      - name: Hata ekran görüntüleri
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-${{ github.run_id }}
+          path: scraper/data/debug
+          if-no-files-found: ignore
+          retention-days: 7

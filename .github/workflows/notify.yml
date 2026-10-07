@@ -1,0 +1,73 @@
+# KartRadar — yeni kampanya bildirimleri (GitHub Actions)
+#
+# Kullanıcı uygulamada saatini seçer: öğle 12:30 ya da akşam 19:30 (Türkiye saati).
+# Bu iş o saatlerde çalışır, son bildirimden beri hangi kartta kaç yeni kampanya geldiğini
+# sayar ve o saatin konusuna (yeni_1230 / yeni_1930) TEK mesaj gönderir. Telefon kendi kartlarını
+# süzüp tek bildirim gösterir. Tarayıcı açmaz, ~1 dakika sürer.
+# Firestore: çalışma başına en fazla 16 okuma, 1 yazma (kullanıcı sayısından bağımsız).
+#
+# GitHub cron saatleri UTC'dir (Türkiye = UTC+3): 09:30 UTC = 12:30 TR, 16:30 UTC = 19:30 TR.
+# Zamanlanmış işler birkaç dakika gecikebilir.
+#
+# Gerekli secret: FIREBASE_SERVICE_ACCOUNT_JSON (tarama ile aynı)
+# Bu dosya .github/workflows/notify.yml konumuna taşınmalı.
+
+name: Yeni kampanya bildirimleri
+
+on:
+  schedule:
+    - cron: "30 9 * * *"  # 12:30 TR
+    - cron: "30 16 * * *" # 19:30 TR
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "Hangi saatin kullanıcılarına"
+        type: choice
+        options: ["1230", "1930"]
+        default: "1930"
+      dry:
+        description: "Deneme: ne gideceğini göster, gönderme"
+        type: boolean
+        default: true
+
+# Tarama yayın yaparken bildirim beklesin (yarım veriyle bildirim gitmesin)
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scraper/package-lock.json
+
+      - name: Paketler
+        run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: Gönder
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          TZ: Europe/Istanbul
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SLOT="${{ inputs.slot }}"
+            FLAGS=""
+            if [ "${{ inputs.dry }}" = "true" ]; then FLAGS="--dry"; fi
+          elif [ "${{ github.event.schedule }}" = "30 9 * * *" ]; then
+            SLOT="1230"; FLAGS=""
+          else
+            SLOT="1930"; FLAGS=""
+          fi
+          npx tsx src/notify.ts --slot "$SLOT" $FLAGS

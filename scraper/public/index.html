@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>KartRadar Admin</title>
+
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <!-- HEADER -->
+
+      <header class="page-header">
+        <div>
+          <h1>KartRadar Admin</h1>
+
+          <p>Kart kampanyası tarayıcısını izle ve yönet</p>
+        </div>
+
+        <button id="scrapeButton">Tümünü tara</button>
+      </header>
+
+      <div class="layout">
+        <main class="main-column">
+        <!-- SYSTEM STATUS -->
+
+        <section class="system-panel">
+          <div class="section-heading">
+            <h2>Sistem Durumu</h2>
+          </div>
+
+          <div class="status-grid">
+            <div class="status-card">
+              <span class="status-label"> Durum </span>
+
+              <strong id="systemStatus"> 🟢 Hazır </strong>
+            </div>
+
+            <div class="status-card">
+              <span class="status-label"> Kampanya </span>
+
+              <strong id="campaignCount"> 0 </strong>
+            </div>
+
+            <div class="status-card">
+              <span class="status-label"> Sonuç </span>
+
+              <strong id="lastResult"> - </strong>
+            </div>
+
+            <div class="status-card">
+              <span class="status-label"> Sonraki otomatik tarama </span>
+
+              <strong id="nextRun"> - </strong>
+            </div>
+          </div>
+        </section>
+
+        <!-- BRANDS -->
+
+        <section class="brands-panel">
+          <div class="section-heading">
+            <h2>Programlar</h2>
+          </div>
+
+          <div class="brand-buttons" id="brandButtons">
+            <button class="brand-button active" data-brand="all">Tümü</button>
+            <!-- Diğer markalar /api/sites üzerinden otomatik eklenir -->
+          </div>
+        </section>
+
+        <!-- FIRESTORE BOYUTU -->
+
+        <section class="size-panel">
+          <div class="section-heading">
+            <h2>Firestore belge boyutu <span class="muted">(program başına sınır 1 MB)</span></h2>
+          </div>
+
+          <div id="sizeContainer" class="size-grid"></div>
+        </section>
+
+        <!-- FİLTRELER -->
+
+        <section class="filters">
+          <input type="text" id="brandSearch" placeholder="Kampanya, marka veya işyeri ara..." />
+
+          <div class="filter-row">
+            <select id="sectorFilter"><option value="">Tüm sektörler</option></select>
+
+            <select id="benefitFilter">
+              <option value="">Tüm kazançlar</option>
+              <option value="puan">Puan</option>
+              <option value="indirim">İndirim</option>
+              <option value="nakit">Nakit iade</option>
+              <option value="taksit">Taksit</option>
+            </select>
+
+            <select id="joinFilter">
+              <option value="">Tüm katılım şekilleri</option>
+              <option value="app">Uygulama</option>
+              <option value="sms">SMS</option>
+              <option value="auto">Otomatik</option>
+              <option value="none">Bulunamadı</option>
+            </select>
+
+            <select id="qualityFilter" title="Ayrıştırıcının eksik bıraktığı kampanyalar">
+              <option value="">Kalite: hepsi</option>
+              <option value="noBenefit">Kazanç bulunamadı</option>
+              <option value="noDate">Bitiş tarihi yok</option>
+              <option value="noSector">Sektör: Diğer</option>
+              <option value="noJoin">Katılım bulunamadı</option>
+            </select>
+
+            <select id="sortSelect">
+              <option value="endSoon">Bitişi en yakın</option>
+              <option value="newest">Yeni eklenen</option>
+              <option value="amount">Kazanç (TL) yüksek</option>
+            </select>
+
+            <button id="clearFilters" class="small-button">Temizle</button>
+          </div>
+        </section>
+
+        <!-- CAMPAIGNS -->
+
+        <section>
+          <div class="section-heading campaign-heading">
+            <h2>Kampanyalar <span id="resultInfo" class="muted"></span></h2>
+          </div>
+
+          <div id="campaignContainer">
+            <div class="loading">Kampanyalar yükleniyor...</div>
+          </div>
+
+          <button id="moreButton" class="more-button" hidden>Daha fazla göster</button>
+        </section>
+        </main>
+
+        <!-- LOGS (sağ sütun, sabit) -->
+
+        <aside class="logs-panel">
+          <div class="section-heading">
+            <h2>Scraper Logları <span id="logsFilterLabel" class="logs-filter">Tümü</span></h2>
+
+            <div class="logs-actions">
+              <span id="logsLive" class="logs-live" hidden>● canlı</span>
+              <button id="refreshLogsButton" class="small-button">Yenile</button>
+            </div>
+          </div>
+
+          <div id="logsContainer">
+            <div class="loading">Loglar yükleniyor...</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

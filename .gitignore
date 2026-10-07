@@ -1,0 +1,49 @@
+# Node
+node_modules/
+dist/
+
+# Scraper yerel verisi (Firestore'a gitmez)
+scraper/data/
+
+# Gizli anahtarlar — ASLA commit etme
+secrets/
+*service-account*.json
+.env
+.env.*
+
+# Flutter / Dart
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/app/google-services.json
+app/ios/Runner/GoogleService-Info.plist
+app/android/key.properties
+*.jks
+*.keystore
+
+# Editör / sistem
+.DS_Store
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+
+# flutterfire configure çıktıları (Firebase proje ayarları; repoya girmesin)
+app/lib/firebase_options.dart
+app/firebase.json
+app/ios/Runner/GoogleService-Info.plist
+
+# geçici aktarım klasörü
+app/_incoming/
+
+# Loglar
+*.log
+
+# Anahtar klasörü yanlışlıkla buraya taşınırsa
+firebase_keys/
+firebase-keys/
+
+# Admin panel (Vercel): Firebase web ayarı ve GitHub token burada, git'e girmez
+admin/.env.local
+admin/.vercel/
