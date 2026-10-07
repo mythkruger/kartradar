@@ -18,6 +18,7 @@ setFirestoreForTesting({
   indexDoc: () => ref("meta") as any,
   metaDoc: (id) => ref("meta/" + id) as any,
   runDoc: (id) => ref("runs/" + id) as any,
+  runsCollection: () => ({}) as any,
   serverTimestamp: () => "TS" as any,
   batch: () => {
     const ops: (() => void)[] = [];

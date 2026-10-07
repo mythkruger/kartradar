@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { DocumentReference, FieldValue, WriteBatch } from "firebase-admin/firestore";
+import type { CollectionReference, DocumentReference, FieldValue, WriteBatch } from "firebase-admin/firestore";
 import { today } from "../core/dates.js";
 import type { Campaign, SiteConfig } from "../core/types.js";
 
@@ -97,6 +97,7 @@ export interface Db {
   metaDoc(id: string): DocumentReference;
   /** Admin panelin okuduğu çalışma raporları (sadece admin okuyabilir, kurallar) */
   runDoc(id: string): DocumentReference;
+  runsCollection(): CollectionReference;
   batch(): WriteBatch;
   serverTimestamp(): FieldValue;
 }
@@ -154,6 +155,7 @@ async function getDb(): Promise<Db | null> {
         indexDoc: () => firestore.collection(INDEX_PATH.collection).doc(INDEX_PATH.doc),
         metaDoc: (id) => firestore.collection(INDEX_PATH.collection).doc(id),
         runDoc: (id) => firestore.collection(RUNS_COLLECTION).doc(id),
+        runsCollection: () => firestore.collection(RUNS_COLLECTION),
         batch: () => firestore.batch(),
         serverTimestamp: () => FieldValue.serverTimestamp()
       };

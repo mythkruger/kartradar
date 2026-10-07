@@ -7,8 +7,10 @@ import { connectFirebase } from "./firestoreService.js";
  *   adminRuns/{tarih-saat_tür}  { kind, trigger, startedAt, ok, summary, sites[], firestore, notify }
  * Panel son ~40 raporu okur. Uygulama bu koleksiyonu okuyamaz (kurallar: sadece admin).
  * Maliyet: çalışma başına 1 yazma (günde ~6).
- * expireAt: 45 gün sonrası. Firestore'da TTL politikası açılırsa eski raporlar kendiliğinden silinir.
+ * Eski raporlar: 45 günden eskiler her raporda temizlenir (Firestore TTL ücretli planda; biz kendimiz siliyoruz).
+ *   Tipik gün: 1 okuma + 6 silme. Sorgu boş dönerse okuma sayılmaz sayılır (en fazla 1).
  */
+const KEEP_DAYS = 45;
 
 export interface SiteReport {
   id: string;
@@ -61,7 +63,7 @@ export async function saveRunReport(report: RunReport): Promise<string | null> {
     if (!db) return null;
     const started = report.startedAt;
     const id = `${started.toISOString().replace(/[:.]/g, "-")}_${report.kind}`;
-    const expireAt = new Date(started.getTime() + 45 * 24 * 60 * 60 * 1000);
+    const expireAt = new Date(started.getTime() + KEEP_DAYS * 24 * 60 * 60 * 1000);
     // Firestore undefined kabul etmez: JSON'dan geçirip temizle
     const clean = JSON.parse(JSON.stringify({ ...report, startedAt: undefined, finishedAt: undefined }));
     await db.runDoc(id).set({
@@ -72,6 +74,18 @@ export async function saveRunReport(report: RunReport): Promise<string | null> {
       trigger: trigger(),
       runUrl: runUrl()
     });
+
+    // 45 günden eski raporları sil (her seferinde en fazla 20)
+    const old = await db
+      .runsCollection()
+      .where("startedAt", "<", new Date(Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000))
+      .limit(20)
+      .get();
+    if (!old.empty) {
+      const batch = db.batch();
+      old.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
     return id;
   } catch (error) {
     console.warn(`Çalışma raporu yazılamadı: ${(error as Error).message.split("\n")[0]}`);
