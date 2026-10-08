@@ -23,20 +23,22 @@ const JOIN = { app: "Uygulamadan", sms: "SMS", auto: "Otomatik" };
 const PAGE = 60;
 
 /*
- * Zamanlanmış işler (Türkiye saati). .github/workflows/scrape.yml ve notify.yml ile aynı olmalı.
- *   cron: workflow dosyasındaki satır (UTC). Rapor bunu taşır → gecikse bile doğru hücreye düşer.
+ * Zamanlanmış işler (Türkiye saati). Asıl tetikleyici cron-job.org → /api/cron?job=<id>.
+ * admin/api/cron.js ve .github/workflows/*.yml ile aynı olmalı.
+ *   id: raporun "schedule" alanı (gecikse bile doğru hücreye düşer)
+ *   old: eski raporlardaki cron satırları (geçiş günleri için)
  *   publish: o taramada Firestore'a yayın yapılır
  */
 const SCHEDULE = [
-  { time: "00:17", cron: "17 21 * * *", kind: "scrape", publish: false, label: "Tarama" },
-  { time: "08:43", cron: "43 5 * * *", kind: "scrape", publish: true, label: "Tarama" },
-  { time: "12:21", cron: "21 9 * * *", kind: "notify", label: "Bildirim" },
-  { time: "15:13", cron: "13 12 * * *", kind: "scrape", publish: false, label: "Tarama" },
-  { time: "19:21", cron: "21 16 * * *", kind: "notify", label: "Bildirim" },
-  { time: "20:43", cron: "43 17 * * *", kind: "scrape", publish: true, label: "Tarama" }
+  { time: "00:17", id: "scrape-0017", old: ["17 21 * * *"], kind: "scrape", publish: false, label: "Tarama" },
+  { time: "08:43", id: "scrape-0843", old: ["43 5 * * *"], kind: "scrape", publish: true, label: "Tarama" },
+  { time: "12:30", id: "notify-1230", old: ["21 9 * * *"], kind: "notify", label: "Bildirim" },
+  { time: "15:13", id: "scrape-1513", old: ["13 12 * * *"], kind: "scrape", publish: false, label: "Tarama" },
+  { time: "19:30", id: "notify-1930", old: ["21 16 * * *"], kind: "notify", label: "Bildirim" },
+  { time: "20:43", id: "scrape-2043", old: ["43 17 * * *"], kind: "scrape", publish: true, label: "Tarama" }
 ];
 const TR_OFFSET = 3 * 60 * 60 * 1000; // Türkiye UTC+3 (yaz saati yok)
-const SLOT_BEFORE = 10 * 60 * 1000; // en erken 10 dk önce
+const SLOT_BEFORE = 20 * 60 * 1000; // eski 12:21 bildirim zamanlaması 12:30 hücresine düşsün
 const SLOT_AFTER = 150 * 60 * 1000; // cron bilgisi olmayan eski raporlar için: 2,5 saat içinde
 const SLOT_GIVEUP = 6 * 60 * 60 * 1000; // 6 saatte rapor gelmezse "çalışmadı"
 const MAX_DOC = 1024 * 1024;
@@ -395,7 +397,7 @@ function slotTime(day, slot) {
 function reportSlotTime(r, slot) {
   const t = toDate(r.startedAt)?.getTime() ?? 0;
   if (r.schedule) {
-    if (r.schedule !== slot.cron) return null;
+    if (r.schedule !== slot.id && !slot.old.includes(r.schedule)) return null;
     for (const d of scheduleDays(9)) {
       const at = slotTime(d, slot);
       if (at <= t + SLOT_BEFORE) return at; // bugün → geçmiş sırasıyla, ilk uyan en yakını
@@ -578,7 +580,7 @@ async function loadGithubRuns() {
           return `<div class="gh-run">
             <span class="pill ${cls}">${esc(label)}</span>
             <span>${fmtTime(new Date(r.createdAt))}</span>
-            <span class="muted small">${r.event === "schedule" ? "zamanlanmış" : "elle"}</span>
+            <span class="muted small">${esc(r.title || (r.event === "schedule" ? "zamanlanmış" : "elle"))}</span>
             <a class="small" href="${esc(r.url)}" target="_blank" rel="noopener">aç ↗</a>
           </div>`;
         }).join("")

@@ -42,6 +42,7 @@ export interface RunReport {
 
 /** Kim başlattı: GitHub zamanlayıcı, elle (panel / GitHub), ya da bilgisayardan */
 function trigger() {
+  if (process.env.KR_TRIGGER) return process.env.KR_TRIGGER; // workflow söyler (cron-job.org → "zamanlanmış")
   const e = process.env.GITHUB_EVENT_NAME;
   if (e === "schedule") return "zamanlanmış";
   if (e === "workflow_dispatch") return "elle";
@@ -72,7 +73,7 @@ export async function saveRunReport(report: RunReport): Promise<string | null> {
       finishedAt: report.finishedAt ?? new Date(),
       expireAt,
       trigger: trigger(),
-      // Hangi cron satırı tetikledi ("43 5 * * *"). Panel raporu gecikse bile doğru saate yerleştirir.
+      // Hangi zamanlanmış saat ("scrape-0843", "notify-1930"). Panel raporu gecikse bile doğru hücreye koyar.
       schedule: process.env.KR_SCHEDULE || null,
       runUrl: runUrl()
     });

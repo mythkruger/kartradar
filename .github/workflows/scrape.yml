@@ -1,27 +1,28 @@
 # KartRadar — zamanlanmış tarama (GitHub Actions)
 #
-# Türkiye saatiyle günde 4 tarama: 00:05, 09:00, 15:00, 21:00
-#   09:00 ve 21:00 → Firestore'a yayınlanır (kullanıcılar günde 2 güncelleme görür)
-#   00:05 ve 15:00 → sadece tarama: yeni kampanyaların detay sayfaları önceden açılır,
-#                    böylece yayın taramaları hızlı ve eksiksiz olur
-# GitHub cron saatleri UTC'dir (Türkiye = UTC+3).
-# Dakikalar bilerek "tam saat" değil: GitHub saat başlarında çok yoğun, zamanlanmış işleri
-# saatlerce geciktirebiliyor ya da atlayabiliyor. Ara dakikalar bu gecikmeyi büyük ölçüde önler.
-# Saatleri değiştirirsen admin/app.js içindeki SCHEDULE listesini de güncelle.
+# Türkiye saatiyle günde 4 tarama:
+#   00:17 ve 15:13 → sadece tarama (ısınma): yeni kampanyaların detay sayfaları önceden açılır
+#   08:43 ve 20:43 → tarama + Firestore'a yayın
 #
-# Elle çalıştırma: GitHub → Actions → "Kampanya taraması" → Run workflow
-# (ileride admin paneldeki "Şimdi tara" butonu da bunu tetikleyecek)
+# ZAMANLAMA: GitHub'ın kendi zamanlayıcısı (schedule) saatlerce gecikebiliyor. Bu yüzden asıl tetikleyici
+# cron-job.org: tam saatinde admin paneldeki /api/cron adresini çağırır, o da bu işi slot_id ile başlatır.
+# Aşağıdaki "schedule" satırları YEDEK: asıl saatten ~45 dk sonra. O saatin taraması zaten yapıldıysa
+# yedek iş tarayıcı kurmadan hemen biter (yaklaşık 1 dakika).
+#
+# Elle çalıştırma: GitHub → Actions → "Kampanya taraması" → Run workflow, ya da admin paneldeki "Şimdi tara".
+# Saatleri değiştirirsen: admin/api/cron.js (JOBS), admin/app.js (SCHEDULE) ve cron-job.org'u da güncelle.
 #
 # Gerekli secret: FIREBASE_SERVICE_ACCOUNT_JSON (service account JSON dosyasının içeriği)
 
 name: Kampanya taraması
+run-name: ${{ inputs.slot_id && format('Zamanlanmış · {0}', inputs.slot_id) || (github.event_name == 'schedule' && format('Yedek · {0}', github.event.schedule) || 'Elle tarama') }}
 
 on:
-  schedule:
-    - cron: "17 21 * * *" # 00:17 TR — sadece tarama
-    - cron: "43 5 * * *"  # 08:43 TR — yayın
-    - cron: "13 12 * * *" # 15:13 TR — sadece tarama
-    - cron: "43 17 * * *" # 20:43 TR — yayın
+  schedule: # YEDEK (UTC). Asıl saatler cron-job.org'da.
+    - cron: "2 22 * * *"  # 01:02 TR → 00:17 taramasının yedeği
+    - cron: "28 6 * * *"  # 09:28 TR → 08:43 yayınının yedeği
+    - cron: "58 12 * * *" # 15:58 TR → 15:13 taramasının yedeği
+    - cron: "28 18 * * *" # 21:28 TR → 20:43 yayınının yedeği
   workflow_dispatch:
     inputs:
       sites:
@@ -36,6 +37,10 @@ on:
         description: "Bir taramada açılacak en fazla yeni detay sayfası (ilk kurulumda 400)"
         required: false
         default: "40"
+      slot_id:
+        description: "(cron-job.org doldurur) Zamanlanmış saat: scrape-0017 / scrape-0843 / scrape-1513 / scrape-2043. Elle çalıştırırken boş bırak."
+        required: false
+        default: ""
 
 # Aynı anda tek tarama (üst üste binmesin)
 concurrency:
@@ -52,6 +57,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Hangi saat, yayın var mı? (cron-job.org → slot_id; yedek → schedule satırı; elle → panelden seçilen)
+      - name: Saat ve yayın
+        id: mode
+        run: |
+          SLOT="${{ inputs.slot_id }}"
+          case "${{ github.event.schedule }}" in
+            "2 22 * * *")  SLOT="scrape-0017" ;;
+            "28 6 * * *")  SLOT="scrape-0843" ;;
+            "58 12 * * *") SLOT="scrape-1513" ;;
+            "28 18 * * *") SLOT="scrape-2043" ;;
+          esac
+          echo "slot=$SLOT" >> "$GITHUB_OUTPUT"
+          if [ -n "$SLOT" ]; then
+            echo "trigger=zamanlanmış" >> "$GITHUB_OUTPUT"
+            if [ "$SLOT" = "scrape-0843" ] || [ "$SLOT" = "scrape-2043" ]; then
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "trigger=elle" >> "$GITHUB_OUTPUT"
+            echo "publish=${{ inputs.publish }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -60,44 +89,47 @@ jobs:
 
       - name: Paketler
         run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      # Yedek iş: o saatin taraması zaten yapıldıysa burada dur (tarayıcı kurulmaz, dakika harcanmaz)
+      - name: Bu saat zaten tarandı mı?
+        id: check
+        if: github.event_name == 'schedule'
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: npx tsx src/check-slot.ts "${{ steps.mode.outputs.slot }}"
 
       - name: Chromium
+        if: steps.check.outputs.skip != 'true'
         run: npx playwright install --with-deps chromium
 
       # Taramalar arası hafıza: detay önbelleği + Firestore'a yazılan özetlerin kaydı.
       # Bu olmazsa her tarama tüm detay sayfalarını açar ve tüm özetleri yeniden yazar.
       - name: Önceki taramanın verisini geri yükle
+        if: steps.check.outputs.skip != 'true'
         uses: actions/cache/restore@v4
         with:
           path: scraper/data
           key: scraper-data-${{ github.run_id }}
           restore-keys: scraper-data-
 
-      - name: Yayın saati mi?
-        id: mode
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "publish=${{ inputs.publish }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "43 5 * * *" ] || [ "${{ github.event.schedule }}" = "43 17 * * *" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Tara
+        if: steps.check.outputs.skip != 'true'
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           DETAIL_MAX_PER_RUN: ${{ inputs.detail_max || '40' }}
           TZ: Europe/Istanbul
-          # Hangi zamanlama tetikledi (admin panel raporu doğru saate yerleştirir)
-          KR_SCHEDULE: ${{ github.event.schedule }}
+          # Admin panel raporu doğru saate yerleştirsin
+          KR_SCHEDULE: ${{ steps.mode.outputs.slot }}
+          KR_TRIGGER: ${{ steps.mode.outputs.trigger }}
         run: |
           FLAGS="--save"
           if [ "${{ steps.mode.outputs.publish }}" != "true" ]; then FLAGS="$FLAGS --no-publish"; fi
           npx tsx src/cli.ts ${{ inputs.sites }} $FLAGS
 
       - name: Veriyi sakla
-        if: always()
+        if: always() && steps.check.outputs.skip != 'true'
         uses: actions/cache/save@v4
         with:
           path: scraper/data

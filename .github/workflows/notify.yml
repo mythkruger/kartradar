@@ -1,24 +1,23 @@
 # KartRadar — yeni kampanya bildirimleri (GitHub Actions)
 #
 # Kullanıcı uygulamada saatini seçer: öğle 12:30 ya da akşam 19:30 (Türkiye saati).
-# Bu iş o saatlerde çalışır, son bildirimden beri hangi kartta kaç yeni kampanya geldiğini
-# sayar ve o saatin konusuna (yeni_1230 / yeni_1930) TEK mesaj gönderir. Telefon kendi kartlarını
-# süzüp tek bildirim gösterir. Tarayıcı açmaz, ~1 dakika sürer.
+# Bu iş son bildirimden beri hangi kartta kaç yeni kampanya geldiğini sayar ve o saatin konusuna
+# (yeni_1230 / yeni_1930) TEK mesaj gönderir. Telefon kendi kartlarını süzüp tek bildirim gösterir.
 # Firestore: çalışma başına en fazla 16 okuma, 1 yazma (kullanıcı sayısından bağımsız).
 #
-# GitHub cron saatleri UTC'dir (Türkiye = UTC+3): 09:21 UTC = 12:21 TR, 16:21 UTC = 19:21 TR.
-# Tam/yarım saat değil: GitHub o dakikalarda çok yoğun, işleri geciktiriyor. Böylece bildirim ~12:30 / ~19:30'da ulaşır.
-# Zamanlanmış işler birkaç dakika gecikebilir.
+# ZAMANLAMA: asıl tetikleyici cron-job.org (tam 12:30 / 19:30'da /api/cron → bu iş, slot_id ile).
+# Aşağıdaki schedule satırları YEDEK (~35 dk sonra). Bildirim zaten gittiyse yedek iş bir şey göndermez
+# (aynı kampanya iki kez bildirilmez, telefon da aynı günün mesajını bir kez gösterir).
 #
 # Gerekli secret: FIREBASE_SERVICE_ACCOUNT_JSON (tarama ile aynı)
-# Bu dosya .github/workflows/notify.yml konumuna taşınmalı.
 
 name: Yeni kampanya bildirimleri
+run-name: ${{ inputs.slot_id && format('Zamanlanmış · {0}', inputs.slot_id) || (github.event_name == 'schedule' && format('Yedek · {0}', github.event.schedule) || 'Elle bildirim') }}
 
 on:
-  schedule:
-    - cron: "21 9 * * *"  # ~12:30 TR (öğle)
-    - cron: "21 16 * * *" # ~19:30 TR (akşam)
+  schedule: # YEDEK (UTC). Asıl saatler cron-job.org'da.
+    - cron: "7 10 * * *" # 13:07 TR → 12:30 bildiriminin yedeği
+    - cron: "7 17 * * *" # 20:07 TR → 19:30 bildiriminin yedeği
   workflow_dispatch:
     inputs:
       slot:
@@ -30,11 +29,14 @@ on:
         description: "Deneme: ne gideceğini göster, gönderme"
         type: boolean
         default: true
+      slot_id:
+        description: "(cron-job.org doldurur) notify-1230 / notify-1930. Elle çalıştırırken boş bırak."
+        required: false
+        default: ""
 
-# Aynı anda tek bildirim çalışması (Firestore yayını tek seferde yazıldığı için taramayı beklemesine gerek yok)
+# Aynı anda tek bildirim çalışması. Taramayla ayrı grupta: aynı grupta olursa sırada bekleyen bildirim,
+# yeni gelen taramanın yerine geçmesiyle iptal edilebiliyordu.
 concurrency:
-  # Kendi grubu: taramayla aynı grupta olursa sırada bekleyen bildirim, yeni gelen taramanın
-  # yerine geçmesiyle iptal edilebiliyordu.
   group: notify
   cancel-in-progress: false
 
@@ -63,15 +65,19 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           TZ: Europe/Istanbul
-          KR_SCHEDULE: ${{ github.event.schedule }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SLOT="${{ inputs.slot }}"
-            FLAGS=""
-            if [ "${{ inputs.dry }}" = "true" ]; then FLAGS="--dry"; fi
-          elif [ "${{ github.event.schedule }}" = "21 9 * * *" ]; then
-            SLOT="1230"; FLAGS=""
+          SLOT_ID="${{ inputs.slot_id }}"
+          case "${{ github.event.schedule }}" in
+            "7 10 * * *") SLOT_ID="notify-1230" ;;
+            "7 17 * * *") SLOT_ID="notify-1930" ;;
+          esac
+          FLAGS=""
+          if [ -n "$SLOT_ID" ]; then
+            SLOT="${SLOT_ID#notify-}"
+            export KR_SCHEDULE="$SLOT_ID" KR_TRIGGER="zamanlanmış"
           else
-            SLOT="1930"; FLAGS=""
+            SLOT="${{ inputs.slot }}"
+            export KR_TRIGGER="elle"
+            if [ "${{ inputs.dry }}" = "true" ]; then FLAGS="--dry"; fi
           fi
           npx tsx src/notify.ts --slot "$SLOT" $FLAGS

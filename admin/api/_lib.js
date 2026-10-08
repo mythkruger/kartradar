@@ -100,3 +100,33 @@ export function sendError(res, error) {
   const status = error instanceof HttpError ? error.status : 500;
   res.status(status).json({ error: error.message || "Hata" });
 }
+
+/* ---------- GitHub Actions ---------- */
+export async function github(path, init = {}) {
+  const token = env("GITHUB_TOKEN");
+  const repo = env("GITHUB_REPO");
+  if (!token || !repo) throw new HttpError(503, "GitHub bağlantısı ayarlı değil (GITHUB_TOKEN / GITHUB_REPO)");
+  const res = await fetch(`https://api.github.com/repos/${repo}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "kartradar-admin",
+      ...(init.body ? { "Content-Type": "application/json" } : {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new HttpError(502, `GitHub ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+/** Bir workflow'u hemen başlat (workflow_dispatch) */
+export function dispatch(workflow, inputs) {
+  return github(`/actions/workflows/${workflow}/dispatches`, {
+    method: "POST",
+    body: JSON.stringify({ ref: env("GITHUB_REF", "main"), inputs })
+  });
+}
