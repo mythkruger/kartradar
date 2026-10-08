@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/program_selector.dart';
-import 'account_page.dart';
 
 /// İlk açılış: "Hangi kartların var?"
 class OnboardingPage extends StatefulWidget {
@@ -57,17 +56,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ),
               ),
             ),
-            // Daha önce hesap açtıysa kartları hesabından gelir
-            if (widget.state.auth != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => AccountPage(state: widget.state)),
-                  ),
-                  child: const Text('Hesabın var mı? Giriş yap'),
-                ),
-              ),
           ],
         ),
       ),

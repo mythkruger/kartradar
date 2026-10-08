@@ -154,6 +154,7 @@ a { color: var(--brand); }
 .slot.wait { background: var(--warn-soft); color: var(--warn); }
 .slot.none { color: #cbd5e1; }
 .slot.clickable { cursor: pointer; }
+.slot .late { color: var(--warn); font-weight: 600; }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 2px 0; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
 .dot.ok { background: var(--gain); } .dot.bad { background: var(--bad); } .dot.miss { background: #d1d5db; } .dot.wait { background: var(--warn); }

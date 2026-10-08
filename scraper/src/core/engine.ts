@@ -103,6 +103,8 @@ export async function runSites(
     onStart?: (site: SiteConfig) => void;
     onLog?: OnLog;
     onResult?: (result: SiteResult) => void;
+    /** Hata veren siteleri en sonda bir kez daha dene (varsayılan: evet) */
+    retryFailed?: boolean;
   } = {}
 ): Promise<SiteResult[]> {
   const concurrency = Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY);
@@ -123,6 +125,25 @@ export async function runSites(
       }
     };
     await Promise.all(Array.from({ length: Math.min(concurrency, sites.length) }, worker));
+
+    // İkinci tur: hata veren siteleri en sonda, tek tek ve daha uzun süre tanıyarak bir kez daha dene.
+    // Gece ve yurt dışından (GitHub) bazı banka siteleri ilk istekte geç cevap veriyor.
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length && options.retryFailed !== false) {
+      await new Promise((resolve) => setTimeout(resolve, 20_000));
+      for (const first of failed) {
+        const site = sites.find((s) => s.id === first.siteId)!;
+        options.onLog?.(site, "warning", `İkinci tur deneniyor (ilk hata: ${first.error})`);
+        const slow = { ...site, timeoutMs: (site.timeoutMs ?? 30_000) * 2, retries: 0 };
+        const second = await scrapeSite(browser, slow, options.onLog);
+        if (second.ok) {
+          second.warnings.unshift(`İlk denemede hata verdi, ikinci turda başarılı (${first.error})`);
+          second.durationMs += first.durationMs;
+          results[results.indexOf(first)] = second;
+          options.onResult?.(second);
+        }
+      }
+    }
   } finally {
     await browser.close();
   }

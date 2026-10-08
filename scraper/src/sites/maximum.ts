@@ -13,6 +13,9 @@ export default defineSite({
   baseUrl: "https://www.maximum.com.tr",
   startUrls: ["/kampanyalar"],
   adapter: "listPage",
+  // Site yurt dışından (GitHub) bazen yavaş açılıyor: daha uzun bekle, 3 kez dene
+  timeoutMs: 60_000,
+  retries: 2,
   waitFor: "div[campid]",
   list: {
     item: "div.col[campid]",

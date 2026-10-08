@@ -25,7 +25,10 @@ class CampaignTile extends StatelessWidget {
 
     return Material(
       color: KR.surface,
-      borderRadius: BorderRadius.circular(KR.radius),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(KR.radius),
+        side: const BorderSide(color: KR.cardBorder, width: 1.2),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(KR.radius),
         onTap: () => openCampaign(context, c),
@@ -128,7 +131,10 @@ class EndingSoonCard extends StatelessWidget {
       width: 240,
       child: Material(
         color: KR.surface,
-        borderRadius: BorderRadius.circular(KR.radius),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KR.radius),
+          side: const BorderSide(color: KR.cardBorder, width: 1.2),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => openCampaign(context, c),

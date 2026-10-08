@@ -20,13 +20,14 @@ export function buildCampaigns(
   const now = new Date().toISOString();
   const todayStr = today();
   const excludeRe = site.excludeTitle ? new RegExp(site.excludeTitle.toLocaleLowerCase("tr-TR")) : null;
-  let dropped = 0;
+  let dropped = 0; // zorunlu alanı (başlık / bağlantı) boş olanlar
+  let filtered = 0; // site kuralıyla bilerek elenenler (ör. genç karta uymayan, kart dışı duyuru)
   let ended = 0;
 
   for (const original of raws) {
     const raw = site.hooks?.transform ? site.hooks.transform({ ...original }) : original;
     if (!raw) {
-      dropped++;
+      filtered++;
       continue;
     }
 
@@ -93,7 +94,7 @@ export function buildCampaigns(
   /* ---- sağlık kontrolü ---- */
   if (raws.length === 0) {
     warnings.push("Hiç kampanya bulunamadı — selector ya da API değişmiş olabilir.");
-  } else if (campaigns.length === 0 && ended < raws.length) {
+  } else if (campaigns.length === 0 && ended + filtered < raws.length) {
     warnings.push(`${raws.length} kayıt bulundu ama hiçbiri geçerli değil (başlık/URL boş).`);
   } else if (campaigns.length) {
     if (dropped > 0) warnings.push(`${dropped} kayıt eksik alan nedeniyle atıldı.`);

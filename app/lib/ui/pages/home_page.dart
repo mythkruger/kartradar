@@ -25,13 +25,32 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _search = TextEditingController();
+  final _scroll = ScrollController();
+
+  /// Aşağı inildikçe görünen "başa dön" oku
+  final _showTop = ValueNotifier(false);
 
   AppState get state => widget.state;
 
   @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      final show = _scroll.hasClients && _scroll.offset > 700;
+      if (show != _showTop.value) _showTop.value = show;
+    });
+  }
+
+  @override
   void dispose() {
     _search.dispose();
+    _scroll.dispose();
+    _showTop.dispose();
     super.dispose();
+  }
+
+  void _toTop() {
+    _scroll.animateTo(0, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
   }
 
   void _openMyCards() {
@@ -88,11 +107,30 @@ class _HomePageState extends State<HomePage> {
           return RefreshIndicator(
             onRefresh: () => state.refresh(force: true),
             child: CustomScrollView(
+              controller: _scroll,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: _slivers(context),
             ),
           );
         },
+      ),
+      // Başa dön: liste uzunken görünür, dokununca en üste kayar
+      floatingActionButton: ValueListenableBuilder<bool>(
+        valueListenable: _showTop,
+        builder: (context, show, _) => AnimatedScale(
+          scale: show ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          child: FloatingActionButton.small(
+            heroTag: 'toTop',
+            tooltip: 'Başa dön',
+            onPressed: show ? _toTop : null,
+            backgroundColor: KR.brand,
+            foregroundColor: Colors.white,
+            elevation: 3,
+            child: const Icon(Icons.keyboard_arrow_up, size: 26),
+          ),
+        ),
       ),
     );
   }
@@ -180,7 +218,7 @@ class _HomePageState extends State<HomePage> {
         const SliverToBoxAdapter(child: SizedBox(height: 18)),
       ],
 
-      // Sektör çipleri + filtre butonu
+      // Filtreler: Sektör · Kazanç · Katılım (açılır menüler)
       SliverToBoxAdapter(child: _FilterBar(state: state)),
 
       // Sonuç başlığı
@@ -338,8 +376,10 @@ class _CardChip extends StatelessWidget {
   }
 }
 
-/* ---------------- Filtre çubuğu ---------------- */
 
+/* ---------------- Filtreler: açılır menüler ---------------- */
+
+/// Sektör · Kazanç · Katılım — her biri dokununca açılan bir menü. Seçiliyse koyu görünür.
 class _FilterBar extends StatelessWidget {
   const _FilterBar({required this.state});
 
@@ -347,164 +387,147 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final count = state.advancedFilterCount;
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
+    final sector = state.sector;
+    final benefit = state.benefitTypes.length == 1 ? state.benefitTypes.first : null;
+    final join = state.join;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
         children: [
-          _Chip(
-            label: count > 0 ? 'Filtre · $count' : 'Filtre',
-            icon: Icons.tune,
-            selected: count > 0,
-            onTap: () => showFilterSheet(context, state),
+          Expanded(
+            flex: 5,
+            child: _DropPill<String?>(
+              label: sector == null ? 'Sektör' : sectorLabel(sector),
+              icon: sector == null ? Icons.category_outlined : sectorIcon(sector),
+              active: sector != null,
+              value: sector,
+              options: [
+                const _Opt(null, 'Tüm sektörler', Icons.apps),
+                for (final e in state.sectorCounts) _Opt(e.key, '${sectorLabel(e.key)}  ·  ${e.value}', sectorIcon(e.key)),
+              ],
+              onSelected: state.setSector,
+            ),
           ),
           const SizedBox(width: 8),
-          _Chip(
-            label: 'Tümü',
-            selected: state.sector == null,
-            onTap: () => state.setSector(null),
-          ),
-          for (final e in state.sectorCounts) ...[
-            const SizedBox(width: 8),
-            _Chip(
-              label: '${sectorLabel(e.key)} ${e.value}',
-              icon: sectorIcon(e.key),
-              selected: state.sector == e.key,
-              onTap: () => state.setSector(state.sector == e.key ? null : e.key),
+          Expanded(
+            flex: 4,
+            child: _DropPill<BenefitType?>(
+              label: benefit == null ? 'Kazanç' : benefitTypeLabel(benefit),
+              icon: Icons.savings_outlined,
+              active: benefit != null,
+              value: benefit,
+              options: [
+                const _Opt(null, 'Hepsi', Icons.apps),
+                for (final t in BenefitType.values) _Opt(t, benefitTypeLabel(t), Icons.savings_outlined),
+              ],
+              onSelected: state.setBenefit,
             ),
-          ],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 4,
+            child: _DropPill<JoinMethod?>(
+              label: join == null ? 'Katılım' : joinLabel(join),
+              icon: join == null ? Icons.how_to_reg_outlined : joinIcon(join),
+              active: join != null,
+              value: join,
+              options: [
+                const _Opt(null, 'Hepsi', Icons.apps),
+                for (final j in JoinMethod.values) _Opt(j, joinLabel(j), joinIcon(j)),
+              ],
+              onSelected: state.setJoin,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.selected, required this.onTap, this.icon});
+class _Opt<T> {
+  const _Opt(this.value, this.label, this.icon);
+
+  final T value;
+  final String label;
+  final IconData icon;
+}
+
+class _DropPill<T> extends StatelessWidget {
+  const _DropPill({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.value,
+    required this.options,
+    required this.onSelected,
+  });
 
   final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final IconData? icon;
+  final IconData icon;
+  final bool active;
+  final T value;
+  final List<_Opt<T>> options;
+  final ValueChanged<T> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : KR.ink;
-    return Material(
-      color: selected ? KR.ink : KR.surface,
-      shape: StadiumBorder(side: BorderSide(color: selected ? KR.ink : KR.line)),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 16, color: fg),
-                const SizedBox(width: 6),
+    final fg = active ? Colors.white : KR.ink;
+    return PopupMenuButton<int>(
+      tooltip: '',
+      position: PopupMenuPosition.under,
+      constraints: const BoxConstraints(minWidth: 200, maxHeight: 420),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      color: KR.surface,
+      onSelected: (i) => onSelected(options[i].value),
+      itemBuilder: (_) => [
+        for (var i = 0; i < options.length; i++)
+          PopupMenuItem<int>(
+            value: i,
+            height: 44,
+            child: Row(
+              children: [
+                Icon(options[i].icon, size: 19, color: options[i].value == value ? KR.brand : KR.muted),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    options[i].label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: options[i].value == value ? FontWeight.w700 : FontWeight.w500,
+                      color: options[i].value == value ? KR.brand : KR.ink,
+                    ),
+                  ),
+                ),
+                if (options[i].value == value) const Icon(Icons.check, size: 18, color: KR.brand),
               ],
-              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
-            ],
+            ),
           ),
+      ],
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: active ? KR.ink : KR.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: active ? KR.ink : KR.line),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: fg),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+              ),
+            ),
+            Icon(Icons.keyboard_arrow_down, size: 18, color: fg),
+          ],
         ),
       ),
-    );
-  }
-}
-
-/* ---------------- Filtre sayfası ---------------- */
-
-void showFilterSheet(BuildContext context, AppState state) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    backgroundColor: KR.surface,
-    builder: (context) => ListenableBuilder(
-      listenable: state,
-      builder: (context, _) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Filtrele', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 18),
-
-              const _SheetLabel('Ne kazanmak istiyorsun?'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final t in BenefitType.values)
-                    FilterChip(
-                      label: Text(benefitTypeLabel(t)),
-                      selected: state.benefitTypes.contains(t),
-                      onSelected: (_) => state.toggleBenefit(t),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 18),
-
-              const _SheetLabel('Katılım şekli'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final j in JoinMethod.values)
-                    ChoiceChip(
-                      avatar: Icon(joinIcon(j), size: 16),
-                      label: Text(joinLabel(j)),
-                      selected: state.join == j,
-                      onSelected: (on) => state.setJoin(on ? j : null),
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: state.advancedFilterCount == 0
-                        ? null
-                        : () {
-                            state.benefitTypes.clear();
-                            state.setJoin(null);
-                          },
-                    child: const Text('Sıfırla'),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text('${state.filtered.length} kampanyayı göster'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class _SheetLabel extends StatelessWidget {
-  const _SheetLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: KR.muted)),
     );
   }
 }

@@ -72,6 +72,8 @@ export async function saveRunReport(report: RunReport): Promise<string | null> {
       finishedAt: report.finishedAt ?? new Date(),
       expireAt,
       trigger: trigger(),
+      // Hangi cron satırı tetikledi ("43 5 * * *"). Panel raporu gecikse bile doğru saate yerleştirir.
+      schedule: process.env.KR_SCHEDULE || null,
       runUrl: runUrl()
     });
 

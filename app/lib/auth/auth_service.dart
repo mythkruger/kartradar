@@ -1,12 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 /*
- * Giriş / kayıt (Firebase Authentication).
+ * Giriş / kayıt (Firebase Authentication). GİRİŞ ZORUNLU: uygulama açılınca giriş ekranı gelir.
  *
- * Uygulama açılınca kullanıcı sessizce ANONİM girer: Firestore'dan kampanya okumak için
- * giriş şart (kurallar), ama kullanıcıdan bir şey istemiyoruz.
- * Kullanıcı isterse Google ya da e-posta ile hesap açar: anonim hesap o hesaba BAĞLANIR
- * (uid değişmez). O e-posta / Google hesabı zaten kayıtlıysa doğrudan o hesaba geçilir.
+ * Eski sürümlerden kalan anonim oturum varsa giriş yapılmamış sayılır; kayıt olunca
+ * o anonim hesap yeni hesaba BAĞLANIR (uid değişmez). Kayıtlı hesapla girişte doğrudan o hesaba geçilir.
  *
  * Firebase Console → Authentication → Sign-in method: Anonymous, Email/Password, Google açık olmalı.
  * Apple ile giriş: Apple Developer hesabı gerekiyor → kAppleSignIn açılınca görünür.
@@ -30,22 +28,12 @@ class AuthService {
   /// Gerçek hesapla girmiş mi (anonim değil)
   bool get isSignedIn => user != null && !user!.isAnonymous;
 
-  Future<void>? _ensuring;
-
-  /// Açılışta (ve her okumadan önce): kayıtlı oturum yoksa anonim giriş.
-  /// Aynı anda birden çok çağrılırsa tek giriş yapılır. İnternet yoksa sessizce geçer.
-  Future<void> ensureSignedIn() {
-    if (_auth.currentUser != null) return Future.value();
-    return _ensuring ??= _ensure().whenComplete(() => _ensuring = null);
-  }
-
-  Future<void> _ensure() async {
+  /// Okumadan önce: telefonda kayıtlı oturumun yüklenmesini bekle (anonim giriş YOK, giriş zorunlu)
+  Future<void> ready() async {
+    if (_auth.currentUser != null) return;
     try {
-      final current = await _auth.authStateChanges().first;
-      if (current == null) await _auth.signInAnonymously();
-    } catch (_) {
-      // Sonraki açılışta tekrar denenir
-    }
+      await _auth.authStateChanges().first.timeout(const Duration(seconds: 5));
+    } catch (_) {}
   }
 
   // ---------- Google / Apple ----------
@@ -106,16 +94,10 @@ class AuthService {
 
   // ---------- Çıkış / silme ----------
 
-  /// Çıkınca tekrar anonim olunur (uygulama okumaya devam eder)
-  Future<void> signOut() async {
-    await _auth.signOut();
-    await ensureSignedIn();
-  }
+  /// Çıkınca giriş ekranına dönülür
+  Future<void> signOut() => _auth.signOut();
 
-  Future<void> deleteAccount() async {
-    await user?.delete();
-    await ensureSignedIn();
-  }
+  Future<void> deleteAccount() async => user?.delete();
 
   static bool _alreadyExists(String code) =>
       code == 'credential-already-in-use' || code == 'email-already-in-use' || code == 'account-exists-with-different-credential';

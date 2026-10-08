@@ -24,19 +24,21 @@ const PAGE = 60;
 
 /*
  * Zamanlanmış işler (Türkiye saati). .github/workflows/scrape.yml ve notify.yml ile aynı olmalı.
+ *   cron: workflow dosyasındaki satır (UTC). Rapor bunu taşır → gecikse bile doğru hücreye düşer.
  *   publish: o taramada Firestore'a yayın yapılır
  */
 const SCHEDULE = [
-  { time: "00:05", kind: "scrape", publish: false, label: "Tarama" },
-  { time: "09:00", kind: "scrape", publish: true, label: "Tarama" },
-  { time: "12:30", kind: "notify", label: "Bildirim" },
-  { time: "15:00", kind: "scrape", publish: false, label: "Tarama" },
-  { time: "19:30", kind: "notify", label: "Bildirim" },
-  { time: "21:00", kind: "scrape", publish: true, label: "Tarama" }
+  { time: "00:17", cron: "17 21 * * *", kind: "scrape", publish: false, label: "Tarama" },
+  { time: "08:43", cron: "43 5 * * *", kind: "scrape", publish: true, label: "Tarama" },
+  { time: "12:21", cron: "21 9 * * *", kind: "notify", label: "Bildirim" },
+  { time: "15:13", cron: "13 12 * * *", kind: "scrape", publish: false, label: "Tarama" },
+  { time: "19:21", cron: "21 16 * * *", kind: "notify", label: "Bildirim" },
+  { time: "20:43", cron: "43 17 * * *", kind: "scrape", publish: true, label: "Tarama" }
 ];
 const TR_OFFSET = 3 * 60 * 60 * 1000; // Türkiye UTC+3 (yaz saati yok)
 const SLOT_BEFORE = 10 * 60 * 1000; // en erken 10 dk önce
-const SLOT_AFTER = 150 * 60 * 1000; // GitHub gecikmesi + tarama süresi: 2,5 saat içinde rapor düşmeli
+const SLOT_AFTER = 150 * 60 * 1000; // cron bilgisi olmayan eski raporlar için: 2,5 saat içinde
+const SLOT_GIVEUP = 6 * 60 * 60 * 1000; // 6 saatte rapor gelmezse "çalışmadı"
 const MAX_DOC = 1024 * 1024;
 
 const $ = (id) => document.getElementById(id);
@@ -389,18 +391,36 @@ function slotTime(day, slot) {
 }
 
 /** Bir günün bir saati için durum: ok | bad | miss | wait | future | none (henüz kayıt tutulmuyordu) */
+/** Raporun ait olduğu saat: cron biliniyorsa başladığı andan önceki en yakın o saat (gecikme ne olursa olsun) */
+function reportSlotTime(r, slot) {
+  const t = toDate(r.startedAt)?.getTime() ?? 0;
+  if (r.schedule) {
+    if (r.schedule !== slot.cron) return null;
+    for (const d of scheduleDays(9)) {
+      const at = slotTime(d, slot);
+      if (at <= t + SLOT_BEFORE) return at; // bugün → geçmiş sırasıyla, ilk uyan en yakını
+    }
+    return null;
+  }
+  // Eski raporlar (cron bilgisi yok): saat penceresine göre
+  return null;
+}
+
 function slotStatus(day, slot) {
   const at = slotTime(day, slot);
   const now = Date.now();
-  const report = (state.runs ?? [])
+  const candidates = (state.runs ?? [])
     .filter((r) => r.kind === slot.kind && r.trigger === "zamanlanmış")
-    .map((r) => ({ r, t: toDate(r.startedAt)?.getTime() ?? 0 }))
-    .filter(({ t }) => t >= at - SLOT_BEFORE && t <= at + SLOT_AFTER)
-    .sort((a, b) => a.t - b.t)[0];
+    .map((r) => ({ r, t: toDate(r.startedAt)?.getTime() ?? 0 }));
+  const report =
+    candidates.filter(({ r }) => r.schedule && reportSlotTime(r, slot) === at).sort((a, b) => a.t - b.t)[0] ??
+    candidates
+      .filter(({ r, t }) => !r.schedule && t >= at - SLOT_BEFORE && t <= at + SLOT_AFTER)
+      .sort((a, b) => a.t - b.t)[0];
 
   if (report) return { state: report.r.ok ? "ok" : "bad", report: report.r, at };
   if (at > now) return { state: "future", at };
-  if (now < at + SLOT_AFTER) return { state: "wait", at };
+  if (now < at + SLOT_GIVEUP) return { state: "wait", at };
   // İlk zamanlanmış rapordan önceki saatler: sistem henüz kurulmamıştı
   const first = (state.runs ?? [])
     .filter((r) => r.trigger === "zamanlanmış")
@@ -428,9 +448,12 @@ function slotCell(day, slot) {
       : slot.publish
         ? (r.firestore?.published ? "📢 yayın" : "yayın yok!")
         : "ısınma";
-  const title = `${r.summary}${late > 2 ? ` · ${late} dk gecikmeli başladı` : ""}`;
+  const lateText = late >= 60 ? `${Math.floor(late / 60)} sa ${late % 60} dk geç` : late > 5 ? `${late} dk geç` : "";
+  const title = `${r.summary}${lateText ? ` · ${lateText} başladı` : ""}`;
   return `<span class="slot ${s.state} clickable" data-run="${esc(r.id)}" title="${esc(title)}">
-    <b>${s.state === "ok" ? "✓" : "✖"} ${hhmm(started)}</b><small>${esc(extra)}</small></span>`;
+    <b>${s.state === "ok" ? "✓" : "✖"} ${hhmm(started)}</b><small>${esc(extra)}</small>${
+      late > 30 ? `<small class="late">⏱ ${esc(lateText)}</small>` : ""
+    }</span>`;
 }
 
 function renderSchedule() {

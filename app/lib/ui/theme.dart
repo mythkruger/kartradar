@@ -19,6 +19,9 @@ class KR {
   static const urgentBg = Color(0xFFFFF1E7);
 
   static const radius = 16.0;
+
+  /// Kampanya kartlarının çerçevesi (açık marka yeşili)
+  static const cardBorder = Color(0xFF9FD3CC);
 }
 
 ThemeData buildTheme() {

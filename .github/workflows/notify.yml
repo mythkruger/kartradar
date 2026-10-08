@@ -6,7 +6,8 @@
 # süzüp tek bildirim gösterir. Tarayıcı açmaz, ~1 dakika sürer.
 # Firestore: çalışma başına en fazla 16 okuma, 1 yazma (kullanıcı sayısından bağımsız).
 #
-# GitHub cron saatleri UTC'dir (Türkiye = UTC+3): 09:30 UTC = 12:30 TR, 16:30 UTC = 19:30 TR.
+# GitHub cron saatleri UTC'dir (Türkiye = UTC+3): 09:21 UTC = 12:21 TR, 16:21 UTC = 19:21 TR.
+# Tam/yarım saat değil: GitHub o dakikalarda çok yoğun, işleri geciktiriyor. Böylece bildirim ~12:30 / ~19:30'da ulaşır.
 # Zamanlanmış işler birkaç dakika gecikebilir.
 #
 # Gerekli secret: FIREBASE_SERVICE_ACCOUNT_JSON (tarama ile aynı)
@@ -16,8 +17,8 @@ name: Yeni kampanya bildirimleri
 
 on:
   schedule:
-    - cron: "30 9 * * *"  # 12:30 TR
-    - cron: "30 16 * * *" # 19:30 TR
+    - cron: "21 9 * * *"  # ~12:30 TR (öğle)
+    - cron: "21 16 * * *" # ~19:30 TR (akşam)
   workflow_dispatch:
     inputs:
       slot:
@@ -30,9 +31,11 @@ on:
         type: boolean
         default: true
 
-# Tarama yayın yaparken bildirim beklesin (yarım veriyle bildirim gitmesin)
+# Aynı anda tek bildirim çalışması (Firestore yayını tek seferde yazıldığı için taramayı beklemesine gerek yok)
 concurrency:
-  group: scrape
+  # Kendi grubu: taramayla aynı grupta olursa sırada bekleyen bildirim, yeni gelen taramanın
+  # yerine geçmesiyle iptal edilebiliyordu.
+  group: notify
   cancel-in-progress: false
 
 jobs:
@@ -60,12 +63,13 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           TZ: Europe/Istanbul
+          KR_SCHEDULE: ${{ github.event.schedule }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SLOT="${{ inputs.slot }}"
             FLAGS=""
             if [ "${{ inputs.dry }}" = "true" ]; then FLAGS="--dry"; fi
-          elif [ "${{ github.event.schedule }}" = "30 9 * * *" ]; then
+          elif [ "${{ github.event.schedule }}" = "21 9 * * *" ]; then
             SLOT="1230"; FLAGS=""
           else
             SLOT="1930"; FLAGS=""

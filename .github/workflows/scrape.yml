@@ -4,7 +4,10 @@
 #   09:00 ve 21:00 → Firestore'a yayınlanır (kullanıcılar günde 2 güncelleme görür)
 #   00:05 ve 15:00 → sadece tarama: yeni kampanyaların detay sayfaları önceden açılır,
 #                    böylece yayın taramaları hızlı ve eksiksiz olur
-# GitHub cron saatleri UTC'dir (Türkiye = UTC+3). Zamanlanmış işler birkaç dakika gecikebilir.
+# GitHub cron saatleri UTC'dir (Türkiye = UTC+3).
+# Dakikalar bilerek "tam saat" değil: GitHub saat başlarında çok yoğun, zamanlanmış işleri
+# saatlerce geciktirebiliyor ya da atlayabiliyor. Ara dakikalar bu gecikmeyi büyük ölçüde önler.
+# Saatleri değiştirirsen admin/app.js içindeki SCHEDULE listesini de güncelle.
 #
 # Elle çalıştırma: GitHub → Actions → "Kampanya taraması" → Run workflow
 # (ileride admin paneldeki "Şimdi tara" butonu da bunu tetikleyecek)
@@ -15,10 +18,10 @@ name: Kampanya taraması
 
 on:
   schedule:
-    - cron: "5 21 * * *" # 00:05 TR — sadece tarama
-    - cron: "0 6 * * *"  # 09:00 TR — yayın
-    - cron: "0 12 * * *" # 15:00 TR — sadece tarama
-    - cron: "0 18 * * *" # 21:00 TR — yayın
+    - cron: "17 21 * * *" # 00:17 TR — sadece tarama
+    - cron: "43 5 * * *"  # 08:43 TR — yayın
+    - cron: "13 12 * * *" # 15:13 TR — sadece tarama
+    - cron: "43 17 * * *" # 20:43 TR — yayın
   workflow_dispatch:
     inputs:
       sites:
@@ -75,7 +78,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "publish=${{ inputs.publish }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "0 6 * * *" ] || [ "${{ github.event.schedule }}" = "0 18 * * *" ]; then
+          elif [ "${{ github.event.schedule }}" = "43 5 * * *" ] || [ "${{ github.event.schedule }}" = "43 17 * * *" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -86,6 +89,8 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           DETAIL_MAX_PER_RUN: ${{ inputs.detail_max || '40' }}
           TZ: Europe/Istanbul
+          # Hangi zamanlama tetikledi (admin panel raporu doğru saate yerleştirir)
+          KR_SCHEDULE: ${{ github.event.schedule }}
         run: |
           FLAGS="--save"
           if [ "${{ steps.mode.outputs.publish }}" != "true" ]; then FLAGS="$FLAGS --no-publish"; fi

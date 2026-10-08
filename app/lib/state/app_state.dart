@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' show User;
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/auth_service.dart';
 import '../data/campaign_repository.dart';
@@ -44,6 +45,9 @@ class AppState extends ChangeNotifier {
   /// Gerçek hesapla girmiş mi (anonim değil)
   bool get signedIn => user != null && !user!.isAnonymous;
 
+  /// Girişten hemen sonra hesaptaki kartlar okunurken true (ekran kart seçimine atlamasın)
+  bool syncingCards = false;
+
   // Yeni kampanya bildirimleri
   bool notifyEnabled = false;
   NotifySlot notifySlot = NotifySlot.evening;
@@ -51,6 +55,9 @@ class AppState extends ChangeNotifier {
 
   Set<String> myPrograms = {};
   bool ready = false;
+
+  /// İlk açılış tanıtımı görüldü mü (telefonda tutulur)
+  bool introSeen = true;
 
   List<Campaign> campaigns = [];
   bool loading = false;
@@ -72,12 +79,24 @@ class AppState extends ChangeNotifier {
     notifyEnabled = n.enabled;
     notifySlot = n.slot;
     _subscribedTopics = {...n.subscribed};
+    introSeen = (await SharedPreferences.getInstance()).getBool(_introKey) ?? false;
+    // Telefonda kayıtlı oturumu bekle: giriş ekranı bir an görünüp kaybolmasın
+    await auth?.ready();
+    user = auth?.user;
     ready = true;
     notifyListeners();
     _authSub ??= auth?.changes.listen(_onUser);
     // Yarım kalan abonelik varsa tamamla (arka planda, açılışı bekletmez)
     _syncTopics();
     if (myPrograms.isNotEmpty) await refresh();
+  }
+
+  static const _introKey = 'intro.seen';
+
+  Future<void> markIntroSeen() async {
+    introSeen = true;
+    notifyListeners();
+    await (await SharedPreferences.getInstance()).setBool(_introKey, true);
   }
 
   Future<void> setPrograms(Set<String> ids) async {
@@ -90,13 +109,33 @@ class AppState extends ChangeNotifier {
   }
 
   void _onUser(User? u) {
+    final wasSignedIn = signedIn;
     user = u;
-    notifyListeners();
     if (signedIn) {
-      if (_cardsSyncedFor != u!.uid) _pullCards(u.uid);
+      if (_cardsSyncedFor != u!.uid) {
+        syncingCards = myPrograms.isEmpty; // kartı yoksa hesabından gelmesini bekle
+        _pullCards(u.uid).whenComplete(() {
+          syncingCards = false;
+          notifyListeners();
+          refresh(); // girişten önce okuma yapılamıyordu (kurallar giriş ister)
+        });
+      }
     } else {
       _cardsSyncedFor = null;
+      if (wasSignedIn) _clearLocal(); // çıkış / hesap silme: sıradaki kişi önceki kartları görmesin
     }
+    notifyListeners();
+  }
+
+  /// Çıkışta telefondaki kişisel durumu temizle
+  Future<void> _clearLocal() async {
+    myPrograms = {};
+    campaigns = [];
+    shownPrograms.clear();
+    clearFilters();
+    await cardStore.save(myPrograms);
+    if (notifyEnabled) await setNotifications(enabled: false);
+    notifyListeners();
   }
 
   /// Girişte: hesaptaki kartlarla telefondakileri birleştir (hiçbir kart kaybolmaz).
@@ -115,7 +154,6 @@ class AppState extends ChangeNotifier {
         await cardStore.save(myPrograms);
         notifyListeners();
         _syncTopics();
-        await refresh();
       }
     } catch (_) {
       _cardsSyncedFor = null; // sonraki açılışta tekrar dene
@@ -192,6 +230,7 @@ class AppState extends ChangeNotifier {
 
   /// [force]: kullanıcı listeyi aşağı çekti → sunucuya mutlaka sor
   Future<void> refresh({bool force = false}) async {
+    if (auth != null && !signedIn) return; // giriş ekranındayken okuma yok
     if (myPrograms.isEmpty) {
       campaigns = [];
       notifyListeners();
@@ -230,6 +269,14 @@ class AppState extends ChangeNotifier {
 
   void setSector(String? s) {
     sector = s;
+    notifyListeners();
+  }
+
+  /// Tek kazanç türü seç (açılır menü). null = hepsi.
+  void setBenefit(BenefitType? t) {
+    benefitTypes
+      ..clear()
+      ..addAll([if (t != null) t]);
     notifyListeners();
   }
 

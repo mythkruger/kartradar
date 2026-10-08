@@ -12,7 +12,9 @@ import 'data/user_cards_sync.dart';
 import 'firebase_options.dart';
 import 'push/fcm_push_service.dart';
 import 'state/app_state.dart';
+import 'ui/pages/email_auth_page.dart';
 import 'ui/pages/home_page.dart';
+import 'ui/pages/intro_page.dart';
 import 'ui/pages/onboarding_page.dart';
 import 'ui/theme.dart';
 
@@ -29,14 +31,13 @@ Future<void> main() async {
   );
 
   final auth = AuthService();
-  auth.ensureSignedIn(); // anonim giriş arka planda, açılışı bekletmez
 
   // Geliştirme: bilgisayardaki admin sunucusundan okumak için
   //   flutter run --dart-define=USE_API=true
   const useApi = bool.fromEnvironment('USE_API');
   final CampaignRepository repository = useApi
       ? ApiCampaignRepository()
-      : FirestoreCampaignRepository(beforeRead: auth.ensureSignedIn);
+      : FirestoreCampaignRepository(beforeRead: auth.ready);
 
   final state = AppState(
     repository: repository,
@@ -65,10 +66,15 @@ class KartRadarApp extends StatelessWidget {
       home: ListenableBuilder(
         listenable: state,
         builder: (context, _) {
-          if (!state.ready) {
+          if (!state.ready || state.syncingCards) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          // Kart seçilmediyse önce kart seçimi
+          // Giriş zorunlu: ilk açılışta önce tanıtım, sonra giriş / kayıt
+          if (state.auth != null && !state.signedIn) {
+            if (!state.introSeen) return IntroPage(state: state);
+            return EmailAuthPage(auth: state.auth!, standalone: true);
+          }
+          // Kart seçilmediyse önce kart seçimi (eski kullanıcının kartları hesabından gelir)
           if (state.myPrograms.isEmpty) return OnboardingPage(state: state);
           return HomePage(state: state);
         },

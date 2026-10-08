@@ -45,6 +45,11 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
+  /// Çıkış / silme sonrası: üstteki sayfaları kapat, giriş ekranı görünsün
+  void _toRoot() {
+    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   void _open(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 
   Future<void> _confirmDelete() async {
@@ -66,7 +71,7 @@ class _AccountPageState extends State<AccountPage> {
         ],
       ),
     );
-    if (yes == true) await _run(state.deleteAccount, success: 'Hesabın silindi');
+    if (yes == true && await _run(state.deleteAccount, success: 'Hesabın silindi')) _toRoot();
   }
 
   @override
@@ -127,7 +132,11 @@ class _AccountPageState extends State<AccountPage> {
                           ListTile(
                             leading: const Icon(Icons.logout),
                             title: const Text('Çıkış yap'),
-                            onTap: _busy ? null : () => _run(auth.signOut, success: 'Çıkış yapıldı'),
+                            onTap: _busy
+                                ? null
+                                : () async {
+                                    if (await _run(auth.signOut)) _toRoot();
+                                  },
                           ),
                           const Divider(height: 1, indent: 16, endIndent: 16),
                           ListTile(
