@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/campaign.dart';
+import '../../legal/legal_texts.dart';
 import '../../models/programs.dart';
 import '../../state/app_state.dart';
 import '../format.dart';
@@ -148,8 +149,8 @@ class _CampaignDetailPageState extends State<CampaignDetailPage> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Tüm koşullar ve katılım adımları bankanın sayfasındadır.',
-                    style: TextStyle(fontSize: 12, color: KR.muted),
+                    kShortDisclaimer,
+                    style: TextStyle(fontSize: 12, color: KR.muted, height: 1.4),
                   ),
                 ],
               ),

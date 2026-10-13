@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../auth/auth_service.dart';
 import '../../models/programs.dart';
 import '../theme.dart';
+import 'legal_page.dart';
 
 /// Giriş / kayıt ekranı.
 ///  standalone: true  → uygulamanın açılış ekranı (giriş zorunlu): üstte tanıtım, geri tuşu yok.
@@ -237,6 +238,25 @@ class _EmailAuthPageState extends State<EmailAuthPage> {
                         width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
                     : Text(_register ? 'Hesap oluştur' : 'Giriş yap'),
               ),
+              if (_register)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text('Kayıt olarak ', style: TextStyle(fontSize: 12.5, color: KR.muted)),
+                      GestureDetector(
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const LegalPage.privacy())),
+                        child: const Text('Gizlilik ve KVKK metnini',
+                            style: TextStyle(
+                                fontSize: 12.5, color: KR.brand, fontWeight: FontWeight.w700, decoration: TextDecoration.underline)),
+                      ),
+                      const Text(' okuduğunu kabul edersin.', style: TextStyle(fontSize: 12.5, color: KR.muted)),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

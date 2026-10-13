@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../auth/auth_service.dart';
 import '../../state/app_state.dart';
 import '../theme.dart';
+import '../../legal/legal_texts.dart';
 import 'email_auth_page.dart';
+import 'legal_page.dart';
 import 'my_cards_page.dart';
 import 'notifications_page.dart';
 
@@ -122,6 +124,32 @@ class _AccountPageState extends State<AccountPage> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 24),
+                  const _SectionLabel('Hakkında'),
+                  _Box(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.privacy_tip_outlined),
+                          title: const Text('Gizlilik ve KVKK'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _open(const LegalPage.privacy()),
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        ListTile(
+                          leading: const Icon(Icons.gavel_outlined),
+                          title: const Text('Yasal uyarı'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _open(const LegalPage.terms()),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(4, 10, 4, 0),
+                    child: Text(kShortDisclaimer, style: TextStyle(fontSize: 12, color: KR.muted, height: 1.4)),
                   ),
                   if (state.signedIn) ...[
                     const SizedBox(height: 24),

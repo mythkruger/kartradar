@@ -61,16 +61,32 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
-      - name: Gönder
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          TZ: Europe/Istanbul
+      - name: Saat
+        id: mode
         run: |
           SLOT_ID="${{ inputs.slot_id }}"
           case "${{ github.event.schedule }}" in
             "7 10 * * *") SLOT_ID="notify-1230" ;;
             "7 17 * * *") SLOT_ID="notify-1930" ;;
           esac
+          echo "slot_id=$SLOT_ID" >> "$GITHUB_OUTPUT"
+
+      # Yedek iş: o saatin bildirimi zaten çalıştıysa burada dur
+      - name: Bu saat zaten çalıştı mı?
+        id: check
+        if: github.event_name == 'schedule'
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: npx tsx src/check-slot.ts "${{ steps.mode.outputs.slot_id }}"
+
+      # Zamanlanmış çalışma saatinden 2,5 saatten fazla geç kalırsa gönderim yapılmaz (gece bildirimi yok)
+      - name: Gönder
+        if: steps.check.outputs.skip != 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          TZ: Europe/Istanbul
+        run: |
+          SLOT_ID="${{ steps.mode.outputs.slot_id }}"
           FLAGS=""
           if [ -n "$SLOT_ID" ]; then
             SLOT="${SLOT_ID#notify-}"

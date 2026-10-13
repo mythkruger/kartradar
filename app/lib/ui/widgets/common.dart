@@ -46,7 +46,11 @@ class ProgramBadge extends StatelessWidget {
   }
 }
 
-/// Kampanya görseli; yoksa program renginde sektör ikonu
+/// Bankaların kampanya görselleri telif kapsamında olabilir: şimdilik göstermiyoruz.
+/// Bankalardan izin alınırsa true yapılabilir (scraper görsel adresini zaten topluyor).
+const kShowBankImages = false;
+
+/// Kampanya görseli yerine: kart renginde zemin + sektör ikonu (+ yer varsa işyeri adı)
 class CampaignImage extends StatelessWidget {
   const CampaignImage(this.campaign, {super.key, this.radius = 12});
 
@@ -56,19 +60,42 @@ class CampaignImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = programById(campaign.programId);
+    final merchant = campaign.merchant;
     final placeholder = Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [p.color.withValues(alpha: 0.85), p.color.withValues(alpha: 0.55)],
+          colors: [p.color.withValues(alpha: 0.9), p.color.withValues(alpha: 0.55)],
         ),
       ),
       alignment: Alignment.center,
-      child: Icon(sectorIcon(campaign.sectors.first), color: Colors.white, size: 28),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final big = box.maxHeight > 100;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(sectorIcon(campaign.sectors.first), color: Colors.white, size: big ? 44 : 28),
+              if (big && merchant != null) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    merchant,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
     );
 
-    final url = campaign.imageUrl;
+    final url = kShowBankImages ? campaign.imageUrl : null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: url == null

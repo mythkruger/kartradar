@@ -3,6 +3,7 @@ import path from "node:path";
 import { chromium, type Browser } from "playwright";
 import { adapters, enrichWithDetails } from "../adapters/index.js";
 import { buildCampaigns } from "./build.js";
+import { robotsWarnings } from "./robots.js";
 import type { SiteConfig, SiteResult } from "./types.js";
 
 export type LogLevel = "info" | "warning";
@@ -26,6 +27,9 @@ export async function scrapeSite(browser: Browser, site: SiteConfig, onLog?: OnL
     info: (msg: string) => onLog?.(site, "info", msg),
     warn: (msg: string) => warnings.push(msg)
   };
+  // Site sahibinin otomatik erişim kuralları (robots.txt): yasaklıysa rapora uyarı
+  warnings.push(...(await robotsWarnings(site.baseUrl, site.startUrls)));
+
   const attempts = (site.retries ?? 1) + 1;
   let lastError: Error | undefined;
   let debugScreenshot: string | undefined;
