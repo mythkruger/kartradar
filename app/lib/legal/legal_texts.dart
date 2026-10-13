@@ -5,8 +5,8 @@
  * Metinleri değiştirirsen admin/gizlilik.html'i de aynı şekilde güncelle.
  */
 
-/// Veri sorumlusu (uygulamanın sahibi) — kendi adınla değiştir
-const kDeveloperName = '[Ad Soyad]';
+/// Veri sorumlusu. Test döneminde marka adı; YAYINDAN ÖNCE avukatla netleştir (KVKK m.10: kimliğin belirlenebilir olması gerekir — gerçek kişi adı ya da ileride şirket unvanı).
+const kDeveloperName = 'KartRadar uygulama ekibi';
 
 /// Kullanıcıların ulaşacağı e-posta (KVKK başvuruları, kaldırma talepleri)
 const kContactEmail = 'smh.dgsn@gmail.com';
