@@ -62,3 +62,7 @@ Ayrıntılar: [`scraper/README.md`](scraper/README.md)
 - Günde birkaç kez tarama; istekler arasında bekleme.
 - Detay sayfasına sadece **yeni** kampanyada girilir (yerel önbellek).
 - Firestore'a özet bilgi ve bankanın kendi sayfasının linki yazılır; kampanya metninin tamamı kopyalanmaz.
+
+## Bakım
+
+Anahtarların nerede durduğu, nasıl yenileneceği, zamanlama ve rutin kontroller: [BAKIM.md](BAKIM.md)
