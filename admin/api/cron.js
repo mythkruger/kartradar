@@ -12,18 +12,14 @@ import { dispatch, env, HttpError, sendError } from "./_lib.js";
  * Anahtar adreste (?key=) ya da "Authorization: Bearer <CRON_SECRET>" başlığında gelebilir.
  *
  * Saatler (Türkiye):              job
- *   00:17 tarama (ısınma)          scrape-0017
  *   08:43 tarama + yayın           scrape-0843
  *   12:30 bildirim (öğle)          notify-1230
- *   15:13 tarama (ısınma)          scrape-1513
  *   19:30 bildirim (akşam)         notify-1930
  *   20:43 tarama + yayın           scrape-2043
  * Değiştirirsen: .github/workflows/*.yml (yedek saatler) ve admin/app.js (SCHEDULE) ile uyumlu tut.
  */
 const JOBS = {
-  "scrape-0017": ["scrape.yml", { publish: "false", slot_id: "scrape-0017" }],
   "scrape-0843": ["scrape.yml", { publish: "true", slot_id: "scrape-0843" }],
-  "scrape-1513": ["scrape.yml", { publish: "false", slot_id: "scrape-1513" }],
   "scrape-2043": ["scrape.yml", { publish: "true", slot_id: "scrape-2043" }],
   "notify-1230": ["notify.yml", { slot: "1230", dry: "false", slot_id: "notify-1230" }],
   "notify-1930": ["notify.yml", { slot: "1930", dry: "false", slot_id: "notify-1930" }]

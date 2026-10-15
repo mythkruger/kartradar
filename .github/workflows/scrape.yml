@@ -1,8 +1,6 @@
 # KartRadar — zamanlanmış tarama (GitHub Actions)
 #
-# Türkiye saatiyle günde 4 tarama:
-#   00:17 ve 15:13 → sadece tarama (ısınma): yeni kampanyaların detay sayfaları önceden açılır
-#   08:43 ve 20:43 → tarama + Firestore'a yayın
+# Türkiye saatiyle günde 2 tarama, ikisi de Firestore'a yayınlar: 08:43 ve 20:43
 #
 # ZAMANLAMA: GitHub'ın kendi zamanlayıcısı (schedule) saatlerce gecikebiliyor. Bu yüzden asıl tetikleyici
 # cron-job.org: tam saatinde admin paneldeki /api/cron adresini çağırır, o da bu işi slot_id ile başlatır.
@@ -19,9 +17,7 @@ run-name: ${{ inputs.slot_id && format('Zamanlanmış · {0}', inputs.slot_id) |
 
 on:
   schedule: # YEDEK (UTC). Asıl saatler cron-job.org'da.
-    - cron: "2 22 * * *"  # 01:02 TR → 00:17 taramasının yedeği
     - cron: "28 6 * * *"  # 09:28 TR → 08:43 yayınının yedeği
-    - cron: "58 12 * * *" # 15:58 TR → 15:13 taramasının yedeği
     - cron: "28 18 * * *" # 21:28 TR → 20:43 yayınının yedeği
   workflow_dispatch:
     inputs:
@@ -36,9 +32,9 @@ on:
       detail_max:
         description: "Bir taramada açılacak en fazla yeni detay sayfası (ilk kurulumda 400)"
         required: false
-        default: "40"
+        default: "60"
       slot_id:
-        description: "(cron-job.org doldurur) Zamanlanmış saat: scrape-0017 / scrape-0843 / scrape-1513 / scrape-2043. Elle çalıştırırken boş bırak."
+        description: "(cron-job.org doldurur) Zamanlanmış saat: scrape-0843 / scrape-2043. Elle çalıştırırken boş bırak."
         required: false
         default: ""
 
@@ -63,9 +59,7 @@ jobs:
         run: |
           SLOT="${{ inputs.slot_id }}"
           case "${{ github.event.schedule }}" in
-            "2 22 * * *")  SLOT="scrape-0017" ;;
             "28 6 * * *")  SLOT="scrape-0843" ;;
-            "58 12 * * *") SLOT="scrape-1513" ;;
             "28 18 * * *") SLOT="scrape-2043" ;;
           esac
           echo "slot=$SLOT" >> "$GITHUB_OUTPUT"
@@ -118,7 +112,7 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          DETAIL_MAX_PER_RUN: ${{ inputs.detail_max || '40' }}
+          DETAIL_MAX_PER_RUN: ${{ inputs.detail_max || '60' }}
           TZ: Europe/Istanbul
           # Admin panel raporu doğru saate yerleştirsin
           KR_SCHEDULE: ${{ steps.mode.outputs.slot }}

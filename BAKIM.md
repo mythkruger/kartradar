@@ -66,10 +66,8 @@ Vercel'deki diğer değişkenler (gizli değil): `ADMIN_EMAIL`, `GITHUB_REPO`.
 
 | Saat (TR) | İş | Ne yapar |
 |---|---|---|
-| 00:17 | `scrape-0017` | Tarama (ısınma, yayın yok) |
 | 08:43 | `scrape-0843` | Tarama + Firestore'a yayın |
 | 12:30 | `notify-1230` | Öğle bildirimi |
-| 15:13 | `scrape-1513` | Tarama (ısınma, yayın yok) |
 | 19:30 | `notify-1930` | Akşam bildirimi |
 | 20:43 | `scrape-2043` | Tarama + Firestore'a yayın |
 
@@ -113,3 +111,19 @@ Google Cloud'da eski anahtarı silmek, onu anında geçersiz kılar.
 
 GitHub, Google (Firebase), Vercel ve cron-job.org hesaplarında **iki adımlı doğrulama (2FA)** açık olmalı.
 Sistemin en zayıf noktası kod değil, bu hesaplardır.
+
+## 9. Gizlilik politikası sayfası
+
+Metnin tek kaynağı `hosting/_kaynak/gizlilik.py` (iletişim e-postası en üstte). Değiştirdikten sonra
+`python hosting/_kaynak/gizlilik.py` çalıştır: hem web sayfasını (`hosting/gizlilik.html`) hem uygulamadaki
+sayfayı (`kartradar-app/lib/ui/pages/privacy_page.dart`, iki klasör yan yana olmalı) yeniden üretir.
+
+Web sayfasını yayınlamak için:
+
+```powershell
+cd C:\Users\Deep_\personalprojects\kartRadar
+firebase deploy --only hosting --project task-236e6
+```
+
+Play Console'daki "Gizlilik politikası" ve "Hesap silme" alanlarına da bu adres yazılır
+(hesap silme için: `https://task-236e6.web.app/gizlilik#hesap-silme`).

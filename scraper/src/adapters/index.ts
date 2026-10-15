@@ -90,7 +90,7 @@ export async function enrichWithDetails(page: Page, site: SiteConfig, raws: RawC
   if (!site.detail) return raws;
   const { root, fields, delayMs = 800, refreshDays = 7 } = site.detail;
   // İlk kurulumda hepsini bir kerede doldurmak için: DETAIL_MAX_PER_RUN=500 npm run scrape -- bonus
-  const maxPerRun = Number(process.env.DETAIL_MAX_PER_RUN) || site.detail.maxPerRun || 40;
+  const maxPerRun = Number(process.env.DETAIL_MAX_PER_RUN) || site.detail.maxPerRun || 60;
 
   const urls = new Set<string>();
   let fromCache = 0;

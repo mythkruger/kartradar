@@ -30,10 +30,8 @@ const PAGE = 60;
  *   publish: o taramada Firestore'a yayın yapılır
  */
 const SCHEDULE = [
-  { time: "00:17", id: "scrape-0017", old: ["17 21 * * *"], kind: "scrape", publish: false, label: "Tarama" },
   { time: "08:43", id: "scrape-0843", old: ["43 5 * * *"], kind: "scrape", publish: true, label: "Tarama" },
   { time: "12:30", id: "notify-1230", old: ["21 9 * * *"], kind: "notify", label: "Bildirim" },
-  { time: "15:13", id: "scrape-1513", old: ["13 12 * * *"], kind: "scrape", publish: false, label: "Tarama" },
   { time: "19:30", id: "notify-1930", old: ["21 16 * * *"], kind: "notify", label: "Bildirim" },
   { time: "20:43", id: "scrape-2043", old: ["43 17 * * *"], kind: "scrape", publish: true, label: "Tarama" }
 ];
