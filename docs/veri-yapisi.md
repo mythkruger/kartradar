@@ -1,7 +1,9 @@
 # KartRadar — Firestore veri yapısı
 
-Scraper **yazar**, uygulama **okur**. İki taraf arasındaki tek sözleşme bu dosya.
-Bir alanın adını ya da anlamını değiştirirsen önce burayı güncelle.
+Backend (scraper + admin, repo `kartradar`) **yazar**, mobil uygulama (repo `kartradar-app`) **okur**.
+İki proje birbirinin kodunu görmez; aralarındaki **tek sözleşme bu dosya**. Aynı dosya iki repoda da
+durur (`docs/veri-yapisi.md`). Bir alanın adını ya da anlamını değiştirirsen önce burayı güncelle,
+sonra iki repoya da aynı kopyayı koy.
 
 ## Belgeler
 
@@ -80,8 +82,7 @@ Program ID'leri: `bonus`, `world`, `maximum`, `axess`, `bankkart`, `bankkart-gen
 - Belge ID'si = kampanyanın `id`'si. Özeti olmayan kampanyanın belgesi yoktur.
 - Scraper sadece yeni / değişen özeti yazar, kalkan kampanyanın özetini siler
   (hangi özetin yazıldığı `scraper/data/published-details.json` dosyasında tutulur).
-- `expireAt`: isteğe bağlı güvenlik ağı. Firestore → TTL policies → koleksiyon `campaignDetails`,
-  alan `expireAt` açılırsa bitmiş kampanyaların özetleri kendiliğinden silinir.
+- `expireAt`: bitişten 2 gün sonrası (TTL faturalı planda açılabilir; şimdilik scraper temizler).
 
 ## Alanlar
 
@@ -125,15 +126,47 @@ Program ID'leri: `bonus`, `world`, `maximum`, `axess`, `bankkart`, `bankkart-gen
 | `genel` | Tüm Harcamalar |
 | `diger` | Diğer |
 
-Kaynak: `scraper/src/core/sectors.ts`
+Backend tarafındaki kaynak: `scraper/src/core/sectors.ts`. Uygulamadaki karşılığı: `lib/models/programs.dart`.
+Anahtar eklenirse iki tarafa da eklenmeli; uygulama bilmediği anahtarı `diger` gibi gösterir.
 
 ## Kurallar
 
 - **Eski veri yok.** Program belgesi her yazımda tamamen değişir; biten / bankadan kalkan kampanya diziden düşer.
 - **Aynı veri tekrar yazılmaz.** Scraper çalışma başında sadece `meta/programIndex`'i okur; hash'i değişmeyen programa dokunmaz.
-- **Günde 2 yayın.** Scraper günde 4 kez tarar ama Firestore'a varsayılan olarak 09:00 ve 21:00'de yayınlar (`PUBLISH_TIMES`). Gece biten kampanyaları uygulama kendisi gizler.
-- **Kişisel veri en az.** Giriş yapmayan kullanıcının kartları sadece telefonda tutulur. Giriş yapanın kart listesi `users/{uid}` belgesinde (`programs`, `updatedAt`); başka hiçbir kişisel bilgi yazılmaz. Kurallar herkesin sadece kendi belgesine erişmesine izin verir.
-- **Okuma için anonim giriş** gerekir (`firebase/firestore.rules`).
+- **Günde 2 yayın.** Firestore'a 08:43 ve 20:43'te (TR) yayınlanır. Gece biten kampanyaları uygulama kendisi gizler.
+- **Kişisel veri en az.** Kart listesi `users/{uid}` belgesinde (`programs`, `updatedAt`); başka hiçbir kişisel bilgi yazılmaz.
+- **Okuma için giriş** gerekir (e-posta/şifre). Anonim giriş kapalı. Kurallar: `firebase/firestore.rules` (backend reposunda).
+
+## Kullanıcı belgesi — `users/{uid}`
+
+```json
+{ "programs": ["bonus", "maximum"], "updatedAt": "<serverTimestamp>" }
+```
+
+- Sadece sahibi okur/yazar; bu iki alan dışında alan yazılamaz (kurallar reddeder).
+- Hesap silinince uygulama bu belgeyi de siler.
+
+## Uygulamanın erişemediği belgeler (sadece admin)
+
+`meta/notifyState`, `adminRuns/*` — uygulama bunları **okumaz**; kurallar da izin vermez.
+
+## Bildirimler (FCM)
+
+| Konu (topic) | Gönderim (TR) |
+|---|---|
+| `yeni_1230` | 12:30 |
+| `yeni_1930` | 19:30 |
+
+- Uygulama kullanıcının seçtiği saate göre **tek bir** konuya abone olur (bildirim kapalıysa hiçbirine).
+- Backend tek bir **data-only** mesaj gönderir (Android önceliği `high`, ttl 6 saat):
+
+```json
+{ "type": "yeni", "slot": "1230", "day": "2026-10-15", "counts": "{\"bonus\":3,\"maximum\":1}" }
+```
+
+- `counts`: JSON metni, program ID → yeni kampanya sayısı. Uygulama bunu kullanıcının kartlarına
+  göre süzer; kullanıcının kartlarında yeni kampanya yoksa bildirim göstermez. Aynı gün+saat için
+  bir kez gösterir (kanal `yeni_kampanya`).
 
 ## Maliyet
 

@@ -1,20 +1,26 @@
-# KartRadar
+# KartRadar — backend (gizli repo)
 
-Banka ve kredi kartı kampanyalarını tek yerde toplayan uygulama.
-Kullanıcı sahip olduğu kartları seçer, sadece kendisine uyan kampanyaları görür.
+Banka ve kredi kartı kampanyalarını toplayan **arka plan sistemi**: tarama, admin paneli,
+zamanlanmış işler, Firestore kuralları. Mobil uygulama **ayrı repodadır** (`kartradar-app`) ve
+bu repodaki hiçbir kodu içermez.
 
 ```
-[Banka siteleri] → scraper/ → Firestore → app/ (Flutter)
+[Banka siteleri] → scraper (GitHub Actions) → Firestore ──→ mobil uygulama (kartradar-app)
+                                             └→ FCM ────→
 ```
+
+İki proje arasındaki tek sözleşme: [`docs/veri-yapisi.md`](docs/veri-yapisi.md)
+(aynı dosyanın bir kopyası uygulama reposunda da var; değişirse ikisini birlikte güncelle).
 
 ## Klasörler
 
 | Klasör | İçerik |
 |---|---|
-| [`scraper/`](scraper/) | Kampanyaları tarayan, ayrıştıran ve Firestore'a yazan Node.js sistemi + admin panel |
-| [`app/`](app/) | Flutter mobil uygulama (2. aşama) |
+| [`scraper/`](scraper/) | Kampanyaları tarayan, ayrıştıran ve Firestore'a yazan Node.js sistemi |
+| [`admin/`](admin/) | Admin paneli (Vercel) |
+| [`.github/workflows/`](.github/workflows/) | Zamanlanmış tarama ve bildirim işleri |
 | [`firebase/`](firebase/) | Firestore kuralları ve indeks ayarları |
-| [`docs/`](docs/) | Veri yapısı ve karar notları |
+| [`docs/`](docs/) | Veri sözleşmesi (uygulama ile ortak) |
 
 ## Kapsam (1. aşama)
 
@@ -23,7 +29,7 @@ Kullanıcı sahip olduğu kartları seçer, sadece kendisine uyan kampanyaları 
 | Bonus | Garanti BBVA | Liste sayfası + yeni kampanyaların detayı |
 | World | Yapı Kredi | Sitenin JSON API'si |
 | Maximum | İş Bankası | Liste sayfası + yeni kampanyaların detayı |
-| Axess | Akbank | Liste + AJAX sayfaları + yeni kampanyaların detayı |
+| Axess | Akbank | Ana liste + kategori sayfaları + yeni kampanyaların detayı |
 | Bankkart | Ziraat Bankası | Liste sayfası + yeni kampanyaların detayı |
 | Paraf | Halkbank | Sitenin JSON'u + yeni kampanyaların detayı |
 | QNB (eski CardFinans) | QNB | Sitenin JSON API'si (metin dahil, detaya girmeden) |
@@ -34,16 +40,6 @@ Kullanıcı sahip olduğu kartları seçer, sadece kendisine uyan kampanyaları 
 | Encard Genç | Enpara (QNB) | Enpara listesi; Encard Genç ve öğrenci kampanyaları |
 | Multinet | Multinet Up (yemek kartı) | Liste sayfası + detay; ödeme duyuruları elenir, bitiş tarihi yok |
 | Setcard | Setcard (yemek kartı) | Sadece "Güncel Kampanyalar" + detay |
-
-## Yol haritası
-
-| Aşama | İçerik | Durum |
-|---|---|---|
-| 0. Kurulum | Repo, Firebase projesi, motorun taşınması | ✅ |
-| 1. Scraper | 4 program, kazanç / sektör / katılım ayrıştırma | ✅ ilk sürüm — gerçek sitelerde deneniyor |
-| 2. Uygulama MVP | Kart seçimi, liste, filtreler, detay | ⏳ tasarım bekleniyor |
-| 3. Bildirimler | Yeni kampanya (FCM), bitmek üzere (yerel) | — |
-| 4. Büyüme | Diğer bankalar, favoriler, mağaza + kart eşleşmesi | — |
 
 ## Başlangıç
 

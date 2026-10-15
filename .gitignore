@@ -11,14 +11,8 @@ secrets/
 .env
 .env.*
 
-# Flutter / Dart
-app/.dart_tool/
-app/build/
-app/.flutter-plugins
-app/.flutter-plugins-dependencies
-app/android/app/google-services.json
-app/ios/Runner/GoogleService-Info.plist
-app/android/key.properties
+# Mobil uygulama ayrı repoda (kartradar-app). Buraya yanlışlıkla kopyalanırsa girmesin.
+app/
 *.jks
 *.keystore
 
@@ -29,13 +23,8 @@ app/android/key.properties
 .vscode/*
 !.vscode/extensions.json
 
-# flutterfire configure çıktıları (Firebase proje ayarları; repoya girmesin)
-app/lib/firebase_options.dart
-app/firebase.json
-app/ios/Runner/GoogleService-Info.plist
-
 # geçici aktarım klasörü
-app/_incoming/
+_incoming/
 
 # Loglar
 *.log

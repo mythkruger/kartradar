@@ -13,7 +13,7 @@ Gizli değerleri asla bu repoya, bir dosyaya ya da sohbete yapıştırma.
 | **GitHub token** (`kartradar_admin`) | Admin paneldeki "Şimdi tara" ve cron-job.org → GitHub işlerini başlatır | Vercel ortam değişkeni `GITHUB_TOKEN` | **1 yıl** (GitHub süre dolmadan e-posta atar) |
 | **Cron anahtarı** | cron-job.org'un panelin `/api/cron` adresini çağırabilmesi | Vercel `CRON_SECRET` + cron-job.org'daki 6 işin adresinde (`&key=...`) | Süresiz |
 | **Firebase web ayarı** | Admin panelinin Firebase'e bağlanması | Vercel `FIREBASE_WEB_CONFIG` + bilgisayarda `admin/.env.local` | Gizli değil, değişmez |
-| **Uygulama ayar dosyaları** | Mobil uygulamanın Firebase'e bağlanması | `app/lib/firebase_options.dart`, `app/android/app/google-services.json` (git'e girmez) | Gizli değil; kaybolursa `flutterfire configure` ile yeniden oluşur |
+| **Uygulama ayar dosyaları** | Mobil uygulamanın Firebase'e bağlanması | `lib/firebase_options.dart`, `android/app/google-services.json` — **uygulama reposunda** (`kartradar-app`), git'e girmez | Gizli değil; kaybolursa `flutterfire configure` ile yeniden oluşur |
 
 Vercel'deki diğer değişkenler (gizli değil): `ADMIN_EMAIL`, `GITHUB_REPO`.
 
